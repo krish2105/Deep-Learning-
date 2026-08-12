@@ -136,14 +136,21 @@ async function request<T>(
       }
     }
 
-    // A 404 on a route the client knows about means the deployed API predates
-    // this build. Saying "Not Found" would send someone debugging the button
-    // rather than redeploying the server.
-    if (res.status === 404 && path.startsWith("/api/v1/auth/")) {
+    // A 404 on a route this client was built against means the deployed API
+    // predates the site, not that the resource is missing. Saying "Not Found"
+    // sends someone debugging the button instead of redeploying the server.
+    // Study lookups are excluded because there a 404 genuinely means the study
+    // does not exist.
+    const isStaleBackend =
+      res.status === 404 &&
+      (path.startsWith("/api/v1/auth/") ||
+        path.startsWith("/api/v1/intelligence/"));
+
+    if (isStaleBackend) {
       throw new ApiError(
-        "This feature is missing from the deployed API, which is running an " +
-          "older build than this site. Redeploy the backend from the latest " +
-          "commit and try again.",
+        "The deployed backend is running an older build than this site, so " +
+          "this feature does not exist there yet. Redeploy the API from the " +
+          "latest commit.",
         404,
       );
     }

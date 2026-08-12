@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SERIES } from "@/components/charts/primitives";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import type { Study } from "@/lib/types";
 
 const MUTED = "var(--film-mid)";
@@ -50,8 +50,12 @@ export function QueryBar({
       const res = await api.nlQuery(text);
       onFilter(res.study_ids, res.interpretation);
       setNote(`${res.n_matched} of ${res.n_total} · ${res.interpretation}`);
-    } catch {
-      setNote("Query unavailable — the API could not be reached.");
+    } catch (err) {
+      setNote(
+        err instanceof ApiError
+          ? err.message
+          : "Query unavailable — the API could not be reached.",
+      );
     } finally {
       setBusy(false);
     }
@@ -140,6 +144,7 @@ export function SimilarPanel({
 }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof api.similar>> | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
+  const [err, setErr] = useState("");
 
   useEffect(() => {
     setState("loading");
@@ -149,13 +154,21 @@ export function SimilarPanel({
         setData(d);
         setState("ok");
       })
-      .catch(() => setState("error"));
+      .catch((e) => {
+        setErr(e instanceof ApiError ? e.message : "");
+        setState("error");
+      });
   }, [study.id]);
 
   if (state === "loading")
     return <p className="text-xs" style={{ color: MUTED }}>Searching…</p>;
   if (state === "error")
-    return <Empty title="Unavailable" body="Similar-case search needs the API." />;
+    return (
+      <Empty
+        title="Unavailable"
+        body={err || "Similar-case search needs the API."}
+      />
+    );
   if (!data?.matches.length)
     return (
       <Empty
@@ -219,6 +232,7 @@ export function TimelinePanel({
 }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof api.timeline>> | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
+  const [err, setErr] = useState("");
 
   useEffect(() => {
     if (!study.patient_ref) {
@@ -233,13 +247,18 @@ export function TimelinePanel({
         setData(d);
         setState("ok");
       })
-      .catch(() => setState("error"));
+      .catch((e) => {
+        setErr(e instanceof ApiError ? e.message : "");
+        setState("error");
+      });
   }, [study.patient_ref]);
 
   if (state === "loading")
     return <p className="text-xs" style={{ color: MUTED }}>Building timeline…</p>;
   if (state === "error")
-    return <Empty title="Unavailable" body="Timeline generation needs the API." />;
+    return (
+      <Empty title="Unavailable" body={err || "Timeline generation needs the API."} />
+    );
   if (!data?.available)
     return (
       <Empty
@@ -334,6 +353,7 @@ export function TimelinePanel({
 export function DisagreementPanel({ study }: { study: Study }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof api.disagreement>> | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
+  const [err, setErr] = useState("");
 
   useEffect(() => {
     setState("loading");
@@ -343,13 +363,18 @@ export function DisagreementPanel({ study }: { study: Study }) {
         setData(d);
         setState("ok");
       })
-      .catch(() => setState("error"));
+      .catch((e) => {
+        setErr(e instanceof ApiError ? e.message : "");
+        setState("error");
+      });
   }, [study.id]);
 
   if (state === "loading")
     return <p className="text-xs" style={{ color: MUTED }}>Comparing estimates…</p>;
   if (state === "error")
-    return <Empty title="Unavailable" body="Disagreement analysis needs the API." />;
+    return (
+      <Empty title="Unavailable" body={err || "Disagreement analysis needs the API."} />
+    );
   if (!data?.n_conflicts)
     return (
       <Empty
