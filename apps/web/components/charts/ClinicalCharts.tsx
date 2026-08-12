@@ -371,66 +371,145 @@ export function ProgressionChart({ studies }: { studies: Study[] }) {
 export function CoveragePlot({
   coverage,
   target,
+  onSelect,
+  selected,
 }: {
-  coverage: { label: string; value: number; n: number }[];
+  coverage: { label: string; value: number | null; n: number; threshold: number }[];
   target: number;
+  onSelect?: (label: string | null) => void;
+  selected?: string | null;
 }) {
-  if (!coverage.length)
+  const rows = coverage.filter((c) => c.value !== null) as {
+    label: string;
+    value: number;
+    n: number;
+    threshold: number;
+  }[];
+
+  if (!rows.length)
     return (
       <ChartEmpty
-        title="No calibration data"
-        body="Run notebooks/02_cnn_classifier.ipynb and deploy conformal_calibration.json to populate empirical coverage."
+        title="No coverage measured"
+        body="Run scripts/calibrate.py against real data and deploy conformal_calibration.json."
       />
     );
 
-  const width = 460;
-  const height = 190;
-  const padL = 108;
-  const padB = 24;
-  const lo = 0.6;
-  const sx = (v: number) => padL + ((v - lo) / (1 - lo)) * (width - padL - 16);
-  const rowH = (height - padB) / coverage.length;
+  const under = rows.filter((r) => r.value < target);
+  const macro = rows.reduce((a, r) => a + r.value, 0) / rows.length;
+
+  // Domain starts at the worst value, not at zero: the question is "does this
+  // sit on the line", and 0-1 would compress every point into the far right.
+  const lo = Math.min(0.7, Math.floor(Math.min(...rows.map((r) => r.value)) * 20) / 20);
+  const W = 460;
+  const padL = 132;      // room for the longest pathology name
+  const padR = 44;       // room for the value label
+  const rowH = 21;
+  const H = rows.length * rowH + 26;
+  const sx = (v: number) => padL + ((v - lo) / (1 - lo)) * (W - padL - padR);
 
   return (
     <ChartFrame
-      title="Conformal coverage — empirical vs nominal"
-      subtitle="The system's central claim. Each label should reach at least the nominal level."
+      title="Conformal coverage — measured against nominal"
+      subtitle={`Macro ${macro.toFixed(4)} against a ${target.toFixed(2)} target. ${under.length} of ${rows.length} labels fall short.`}
       legend={[
-        { label: "Empirical coverage", color: SERIES[0] },
-        { label: `Nominal target ${(target * 100).toFixed(0)}%`, color: SERIES[3] },
+        { label: "Meets target", color: SERIES[0] },
+        { label: "Below target", color: "var(--stat)" },
+        { label: `Nominal ${(target * 100).toFixed(0)}%`, color: SERIES[3] },
       ]}
     >
-      <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img"
-           aria-label="Empirical coverage per pathology against the nominal target">
-        {[0.6, 0.7, 0.8, 0.9, 1.0].map((t) => (
-          <g key={t} aria-hidden>
-            <line x1={sx(t)} x2={sx(t)} y1={0} y2={height - padB} stroke={INK.grid} strokeWidth={1} opacity={0.5} />
-            <text x={sx(t)} y={height - 8} fontSize={9} textAnchor="middle" fill={INK.secondary} className="tabular">
-              {(t * 100).toFixed(0)}%
-            </text>
-          </g>
-        ))}
-
-        {/* the reference line is the subject of this chart */}
-        <line x1={sx(target)} x2={sx(target)} y1={0} y2={height - padB} stroke={SERIES[3]} strokeWidth={2} strokeDasharray="4 3" />
-
-        {coverage.map((c, i) => {
-          const y = i * rowH + rowH / 2;
-          const ok = c.value >= target - 0.03;
-          return (
-            <g key={c.label}>
-              <text x={padL - 8} y={y + 3} fontSize={9.5} textAnchor="end" fill={INK.secondary}>
-                {c.label}
+      <div className="overflow-x-auto">
+        <svg
+          width="100%"
+          viewBox={`0 0 ${W} ${H}`}
+          role="img"
+          aria-label={`Empirical coverage per pathology. ${under.length} labels below the ${target} target.`}
+        >
+          {[lo, (lo + 1) / 2, 1].map((t) => (
+            <g key={t} aria-hidden>
+              <line x1={sx(t)} x2={sx(t)} y1={0} y2={H - 20} stroke={INK.grid} strokeWidth={1} opacity={0.5} />
+              <text x={sx(t)} y={H - 6} fontSize={9} textAnchor="middle" fill={INK.secondary} className="tabular">
+                {(t * 100).toFixed(0)}%
               </text>
-              <line x1={padL} x2={sx(c.value)} y1={y} y2={y} stroke={INK.grid} strokeWidth={1} />
-              <circle cx={sx(c.value)} cy={y} r={5.5} fill="var(--film-panel)" />
-              <circle cx={sx(c.value)} cy={y} r={4} fill={ok ? SERIES[0] : SERIES[3]}>
-                <title>{`${c.label}: ${(c.value * 100).toFixed(1)}% over n=${c.n}`}</title>
-              </circle>
             </g>
-          );
-        })}
-      </svg>
+          ))}
+
+          {/* the target is the subject of this chart, so it gets the ink */}
+          <line x1={sx(target)} x2={sx(target)} y1={0} y2={H - 20}
+                stroke={SERIES[3]} strokeWidth={2} strokeDasharray="4 3" />
+
+          {rows.map((c, i) => {
+            const y = i * rowH + 10;
+            const ok = c.value >= target;
+            const isSel = selected === c.label;
+            return (
+              <g
+                key={c.label}
+                style={{ cursor: onSelect ? "pointer" : "default" }}
+                onClick={() => onSelect?.(isSel ? null : c.label)}
+              >
+                <rect x={0} y={y - rowH / 2} width={W} height={rowH} fill="transparent" />
+                <text
+                  x={padL - 8}
+                  y={y + 3}
+                  fontSize={9.5}
+                  textAnchor="end"
+                  fill={isSel || !ok ? INK.primary : INK.secondary}
+                  fontWeight={isSel ? 600 : 400}
+                >
+                  {c.label}
+                </text>
+                {/* connector from the axis, so the eye tracks name to point */}
+                <line x1={padL} x2={sx(c.value)} y1={y} y2={y} stroke={INK.grid} strokeWidth={1} />
+                <circle cx={sx(c.value)} cy={y} r={5.5} fill="var(--film-panel)" />
+                <circle cx={sx(c.value)} cy={y} r={isSel ? 5 : 3.8} fill={ok ? SERIES[0] : "var(--stat)"}>
+                  <title>{`${c.label}: ${(c.value * 100).toFixed(1)}% coverage, τ ${c.threshold.toFixed(3)}, ${c.n} calibration positives`}</title>
+                </circle>
+                <text
+                  x={W - 4}
+                  y={y + 3}
+                  fontSize={9}
+                  textAnchor="end"
+                  fill={ok ? INK.secondary : "var(--stat)"}
+                  className="tabular"
+                >
+                  {c.value.toFixed(3)}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {selected && (
+        <div
+          className="mt-3 rounded-sm border p-3"
+          style={{ borderColor: "var(--instrument)" }}
+        >
+          {(() => {
+            const r = rows.find((x) => x.label === selected);
+            if (!r) return null;
+            const short = target - r.value;
+            return (
+              <>
+                <p className="text-xs font-medium">{r.label}</p>
+                <p className="tabular mt-1 text-[11px]" style={{ color: INK.secondary }}>
+                  coverage {r.value.toFixed(4)} · threshold τ {r.threshold.toFixed(3)} ·{" "}
+                  {r.n} calibration positives
+                </p>
+                <p className="mt-1.5 text-[11px]" style={{ color: INK.secondary }}>
+                  {short > 0
+                    ? `Short of the target by ${short.toFixed(3)}. ${
+                        r.n < 100
+                          ? `With only ${r.n} calibration positives the quantile is noisy.`
+                          : "Patient-disjoint splitting weakens the exchangeability the guarantee assumes."
+                      }`
+                    : "Meets the nominal coverage level."}
+                </p>
+              </>
+            );
+          })()}
+        </div>
+      )}
     </ChartFrame>
   );
 }
@@ -446,9 +525,13 @@ export function CoveragePlot({
 export function FairnessBars({
   gaps,
   tolerance,
+  active,
+  onSelect,
 }: {
   gaps: { stratum: string; tpr_gap: number; fpr_gap: number }[];
   tolerance: number;
+  active?: string | null;
+  onSelect?: (stratum: string | null) => void;
 }) {
   if (!gaps.length)
     return (
@@ -458,18 +541,39 @@ export function FairnessBars({
       />
     );
 
+  const shown = active ? gaps.filter((g) => g.stratum === active) : gaps;
   const width = 440;
   const barH = 16;
   const groupH = 46;
-  const padL = 96;
-  const height = gaps.length * groupH;
+  const padL = 112;   // widened: "View position" was colliding with the bars
+  const height = shown.length * groupH;
   const max = Math.max(tolerance * 1.6, ...gaps.flatMap((g) => [g.tpr_gap, g.fpr_gap]));
+  const breaches = gaps.filter((g) => Math.max(g.tpr_gap, g.fpr_gap) > tolerance).length;
   const sx = (v: number) => padL + (v / max) * (width - padL - 40);
 
   return (
     <ChartFrame
       title="Equalised-odds gaps by stratum"
-      subtitle={`Maximum within-stratum difference in true- and false-positive rate. Tolerance ${tolerance}.`}
+      subtitle={`Maximum within-stratum difference in true- and false-positive rate. ${breaches} of ${gaps.length} strata breach the ${tolerance} tolerance.`}
+      action={
+        onSelect ? (
+          <div className="flex flex-wrap gap-1">
+            {[null, ...gaps.map((g) => g.stratum)].map((st) => (
+              <button
+                key={st ?? "all"}
+                onClick={() => onSelect(st)}
+                className="rounded-full border px-2 py-0.5 text-[10px]"
+                style={{
+                  borderColor: active === st ? "var(--instrument)" : "var(--film-shoulder)",
+                  color: active === st ? "var(--instrument)" : INK.secondary,
+                }}
+              >
+                {st ?? "all"}
+              </button>
+            ))}
+          </div>
+        ) : undefined
+      }
       legend={[
         { label: "TPR gap", color: SERIES[0] },
         { label: "FPR gap", color: SERIES[4] },
@@ -483,7 +587,7 @@ export function FairnessBars({
           τ {tolerance}
         </text>
 
-        {gaps.map((g, i) => {
+        {shown.map((g, i) => {
           const y = i * groupH;
           return (
             <g key={g.stratum}>

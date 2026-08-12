@@ -52,25 +52,28 @@ export function ChartFrame({
   action?: React.ReactNode;
 }) {
   return (
+    // h-full + flex so cards in the same grid row match height and their
+    // content tops align. Without it a short chart floats mid-cell and the row
+    // reads as ragged.
     <figure
-      className="rounded-sm border p-4"
+      className="flex h-full flex-col rounded-sm border p-4"
       style={{ borderColor: "var(--film-shoulder)", background: "var(--film-panel)" }}
     >
       <figcaption className="mb-3 flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h3 className="text-sm font-medium" style={{ color: INK.primary }}>
             {title}
           </h3>
           {subtitle && (
-            <p className="mt-0.5 text-[11px]" style={{ color: INK.secondary }}>
+            <p className="mt-0.5 text-[11px] leading-snug" style={{ color: INK.secondary }}>
               {subtitle}
             </p>
           )}
         </div>
-        {action}
+        {action && <div className="shrink-0">{action}</div>}
       </figcaption>
 
-      {children}
+      <div className="min-w-0 flex-1">{children}</div>
 
       {/* A legend is always present for two or more series, so identity is
           never carried by colour alone. */}

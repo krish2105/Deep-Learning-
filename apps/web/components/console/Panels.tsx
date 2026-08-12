@@ -406,10 +406,8 @@ function Uncertainty({ study }: { study: Study }) {
           cal?.fitted
             ? Object.entries(cal.thresholds).map(([k, v]) => ({
                 label: k.replace(/_/g, " "),
-                // Realised coverage comes from the evaluation notebook; until
-                // that artefact exists the threshold is all we can honestly
-                // show, so the plot renders its empty state instead.
-                value: v.probability_threshold,
+                value: v.empirical_coverage,
+                threshold: v.probability_threshold,
                 n: v.n_calibration_positives,
               }))
             : []

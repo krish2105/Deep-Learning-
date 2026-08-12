@@ -120,8 +120,20 @@ export interface CalibrationState {
   max_set_size: number;
   thresholds: Record<
     string,
-    { probability_threshold: number; n_calibration_positives: number }
+    {
+      probability_threshold: number;
+      n_calibration_positives: number;
+      empirical_coverage: number | null;
+    }
   >;
+  macro_coverage?: number | null;
+  provenance?: {
+    n_calibration_images?: number;
+    n_test_images?: number;
+    n_patients?: number;
+    split?: string;
+    model?: string;
+  };
   warning: string | null;
   backends: Record<string, string>;
 }

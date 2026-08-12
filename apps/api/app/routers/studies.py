@@ -276,9 +276,17 @@ async def calibration_state() -> dict:
             name: {
                 "probability_threshold": round(float(1.0 - cal.thresholds[i]), 4),
                 "n_calibration_positives": int(cal.n_calibration[i]),
+                # Realised coverage for this label on the held-out split. The
+                # dashboard previously plotted the THRESHOLD under a "coverage"
+                # label -- two different quantities -- because this was never
+                # exposed. A system built on admitting what it does not know
+                # should not misreport what it does.
+                "empirical_coverage": cal.empirical_coverage.get(name),
             }
             for i, name in enumerate(PATHOLOGIES)
         },
+        "macro_coverage": cal.empirical_coverage.get("_macro_average"),
+        "provenance": cal.provenance,
         "warning": (
             None
             if cal.fitted

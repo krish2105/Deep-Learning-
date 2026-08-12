@@ -117,6 +117,8 @@ class ConformalCalibrator:
         self.max_set_size = max_set_size
         self.thresholds: np.ndarray = np.full(N_PATHOLOGIES, FALLBACK_THRESHOLD)
         self.n_calibration: np.ndarray = np.zeros(N_PATHOLOGIES, dtype=int)
+        self.empirical_coverage: dict = {}
+        self.provenance: dict = {}
         self.fitted = False
 
     def fit(self, probs: np.ndarray, labels: np.ndarray) -> "ConformalCalibrator":
@@ -251,6 +253,11 @@ class ConformalCalibrator:
         cal = cls(alpha=data["alpha"], max_set_size=data["max_set_size"])
         cal.thresholds = np.asarray(data["thresholds"], dtype=np.float64)
         cal.n_calibration = np.asarray(data["n_calibration"], dtype=int)
+        # Realised coverage measured on the held-out split, carried alongside
+        # the thresholds. A system claiming a guarantee must be able to show
+        # what it ACHIEVED, not only what it aimed at.
+        cal.empirical_coverage = data.get("empirical_coverage", {})
+        cal.provenance = data.get("fitted_on", {})
         cal.fitted = True
         return cal
 

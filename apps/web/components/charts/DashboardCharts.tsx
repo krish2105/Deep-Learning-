@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Study } from "@/lib/types";
 import { ChartEmpty, ChartFrame, INK, SERIES } from "./primitives";
 
@@ -274,6 +274,194 @@ export function DecisionSplit({
             </span>
           </button>
         ))}
+      </div>
+    </ChartFrame>
+  );
+}
+
+
+/* ── Audit table ────────────────────────────────────────────────────────
+   Sortable, searchable, exportable. An audit surface that cannot be
+   interrogated is a screenshot, not a record.
+   ─────────────────────────────────────────────────────────────────────── */
+type SortKey = "patient" | "decision" | "triage" | "latency" | "created";
+
+export function AuditTable({
+  studies,
+  onOpen,
+}: {
+  studies: Study[];
+  onOpen?: (id: string) => void;
+}) {
+  const [sort, setSort] = useState<SortKey>("created");
+  const [asc, setAsc] = useState(false);
+  const [q, setQ] = useState("");
+
+  const decision = (s: Study) =>
+    s.is_ood ? "rejected" : s.abstained ? "abstained" : "answered";
+
+  const rows = useMemo(() => {
+    const filtered = studies.filter((s) => {
+      if (!q.trim()) return true;
+      const hay = `${s.patient_ref} ${decision(s)} ${s.triage_priority} ${s.findings
+        .filter((f) => f.included)
+        .map((f) => f.display_name)
+        .join(" ")}`.toLowerCase();
+      return hay.includes(q.toLowerCase());
+    });
+    // Triage sorts by clinical severity, not alphabetically — ROUTINE would
+    // otherwise sort above STAT, which is exactly backwards for this column.
+    const rank = { STAT: 0, URGENT: 1, ROUTINE: 2 } as Record<string, number>;
+    const cmp: Record<SortKey, (a: Study, b: Study) => number> = {
+      patient: (a, b) => (a.patient_ref || "").localeCompare(b.patient_ref || ""),
+      decision: (a, b) => decision(a).localeCompare(decision(b)),
+      triage: (a, b) => rank[a.triage_priority] - rank[b.triage_priority],
+      latency: (a, b) => a.latency_ms - b.latency_ms,
+      created: (a, b) => +new Date(a.created_at) - +new Date(b.created_at),
+    };
+    return [...filtered].sort((a, b) => (asc ? 1 : -1) * cmp[sort](a, b));
+  }, [studies, sort, asc, q]);
+
+  function exportCsv() {
+    const head = ["patient_ref", "visit", "decision", "triage", "score", "mode", "latency_ms", "findings", "created_at"];
+    const body = rows.map((s) => [
+      s.patient_ref,
+      s.follow_up_index + 1,
+      decision(s),
+      s.triage_priority,
+      s.triage_score.toFixed(4),
+      s.mode,
+      s.latency_ms,
+      // Quote the field: pathology lists contain commas and would otherwise
+      // shift every subsequent column.
+      `"${s.findings.filter((f) => f.included).map((f) => f.display_name).join("; ")}"`,
+      s.created_at,
+    ]);
+    const csv = [head.join(","), ...body.map((r) => r.join(","))].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sentinel-cxr-audit-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const COLS: [SortKey, string][] = [
+    ["patient", "Patient"],
+    ["decision", "Decision"],
+    ["triage", "Triage"],
+    ["latency", "Latency"],
+    ["created", "When"],
+  ];
+
+  return (
+    <ChartFrame
+      title="Audit record"
+      subtitle={`${rows.length} of ${studies.length} studies. Click a column to sort, a row to open it.`}
+      action={
+        <div className="flex items-center gap-1.5">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search…"
+            aria-label="Search the audit record"
+            className="w-28 rounded-sm border px-2 py-1 text-[11px] outline-none"
+            style={{
+              borderColor: "var(--film-shoulder)",
+              background: "var(--film-base)",
+              color: INK.primary,
+            }}
+          />
+          <button
+            onClick={exportCsv}
+            className="rounded-sm border px-2 py-1 text-[11px]"
+            style={{ borderColor: "var(--film-shoulder)", color: INK.secondary }}
+          >
+            CSV
+          </button>
+        </div>
+      }
+    >
+      <div className="max-h-[26rem] overflow-auto">
+        <table className="w-full text-left text-[11px]">
+          <thead className="sticky top-0" style={{ background: "var(--film-panel)" }}>
+            <tr>
+              {COLS.map(([k, label]) => (
+                <th key={k} className="pb-1.5 pr-3 font-normal">
+                  <button
+                    onClick={() => {
+                      if (sort === k) setAsc(!asc);
+                      else {
+                        setSort(k);
+                        setAsc(false);
+                      }
+                    }}
+                    className="flex items-center gap-1"
+                    style={{ color: sort === k ? INK.primary : INK.secondary }}
+                  >
+                    {label}
+                    <span aria-hidden style={{ opacity: sort === k ? 1 : 0.25 }}>
+                      {sort === k && asc ? "▲" : "▼"}
+                    </span>
+                  </button>
+                </th>
+              ))}
+              <th className="pb-1.5 font-normal" style={{ color: INK.secondary }}>
+                Findings
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((s) => {
+              const d = decision(s);
+              return (
+                <tr
+                  key={s.id}
+                  onClick={() => onOpen?.(s.id)}
+                  className={onOpen ? "cursor-pointer hover:bg-[var(--film-base)]" : ""}
+                  style={{ borderTop: "1px solid var(--film-shoulder)" }}
+                >
+                  <td className="tabular py-1.5 pr-3">
+                    {s.patient_ref || "—"}
+                    <span style={{ color: INK.secondary }}> ·{s.follow_up_index + 1}</span>
+                  </td>
+                  <td className="py-1.5 pr-3">
+                    <span
+                      style={{
+                        color:
+                          d === "rejected"
+                            ? "var(--stat)"
+                            : d === "abstained"
+                              ? "var(--urgent)"
+                              : INK.primary,
+                      }}
+                    >
+                      {d}
+                    </span>
+                  </td>
+                  <td className="tabular py-1.5 pr-3">{s.triage_priority}</td>
+                  <td className="tabular py-1.5 pr-3">{s.latency_ms}ms</td>
+                  <td className="tabular py-1.5 pr-3" style={{ color: INK.secondary }}>
+                    {new Date(s.created_at).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </td>
+                  <td className="truncate py-1.5" style={{ color: INK.secondary, maxWidth: 180 }}>
+                    {s.findings.filter((f) => f.included).map((f) => f.display_name).join(", ") || "—"}
+                  </td>
+                </tr>
+              );
+            })}
+            {!rows.length && (
+              <tr>
+                <td colSpan={6} className="py-3" style={{ color: INK.secondary }}>
+                  {q ? `Nothing matches "${q}".` : "No studies in this session."}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </ChartFrame>
   );

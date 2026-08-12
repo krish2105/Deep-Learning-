@@ -13,6 +13,7 @@ import {
   DecisionSplit,
   PathologyProfile,
   ThroughputChart,
+  AuditTable,
 } from "@/components/charts/DashboardCharts";
 import { ChartFrame, INK, SERIES } from "@/components/charts/primitives";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -48,6 +49,8 @@ export default function Dashboard() {
   const [fPriority, setFPriority] = useState<string | null>(null);
   const [fDecision, setFDecision] = useState<string | null>(null);
   const [fPathology, setFPathology] = useState<string | null>(null);
+  const [selCoverage, setSelCoverage] = useState<string | null>(null);
+  const [fairStratum, setFairStratum] = useState<string | null>(null);
   const router = useRouter();
 
   const openStudy = (id: string) => router.push(`/console?study=${id}`);
@@ -266,11 +269,11 @@ export default function Dashboard() {
         </div>
       )}
 
-      <main className="mx-auto max-w-6xl space-y-4 p-5">
+      <main className="mx-auto max-w-6xl space-y-3 p-4 sm:p-5">
         {tab === "Overview" && (
           <>
             {/* Bento: the hero block carries the number that matters most. */}
-            <section className="grid gap-3 lg:grid-cols-4">
+            <section className="grid items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div
                 className="rounded-sm border p-6 lg:col-span-2 lg:row-span-1"
                 style={{ borderColor: "var(--film-shoulder)", background: "var(--film-panel)" }}
@@ -301,7 +304,7 @@ export default function Dashboard() {
               />
             </section>
 
-            <section className="grid gap-4 lg:grid-cols-3">
+            <section className="grid items-start gap-3 lg:grid-cols-3">
               <div className="lg:col-span-2">
                 <ThroughputChart studies={view} />
               </div>
@@ -375,18 +378,24 @@ export default function Dashboard() {
               </div>
             </section>
 
-            <section className="grid gap-4 lg:grid-cols-2">
+            <section className="grid items-start gap-3 lg:grid-cols-2">
               <CoveragePlot
                 coverage={
                   cal?.fitted
-                    ? Object.entries(cal.thresholds).slice(0, 10).map(([k, v]) => ({
+                    ? Object.entries(cal.thresholds).map(([k, v]) => ({
                         label: k.replace(/_/g, " "),
-                        value: v.probability_threshold,
+                        // The MEASURED coverage, not the threshold. These are
+                        // different quantities and the chart previously plotted
+                        // the wrong one under a "coverage" title.
+                        value: v.empirical_coverage,
+                        threshold: v.probability_threshold,
                         n: v.n_calibration_positives,
                       }))
                     : []
                 }
                 target={cal?.coverage_target ?? 0.9}
+                selected={selCoverage}
+                onSelect={setSelCoverage}
               />
               <PathologyProfile studies={view} />
             </section>
@@ -398,6 +407,8 @@ export default function Dashboard() {
             <FairnessBars
               gaps={(fairness?.gaps as { stratum: string; tpr_gap: number; fpr_gap: number }[]) ?? []}
               tolerance={(fairness?.tolerance as number) ?? 0.1}
+              active={fairStratum}
+              onSelect={setFairStratum}
             />
             <div
               className="rounded-sm border p-5"
@@ -434,41 +445,8 @@ export default function Dashboard() {
 
         {tab === "Audit" && (
           <section className="space-y-4">
+            <AuditTable studies={view} onOpen={openStudy} />
             <ActivityFeed studies={view} onOpen={openStudy} />
-            <ChartFrame title="Every study" subtitle="Full decision record for this session">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-[11px]">
-                  <thead>
-                    <tr style={{ color: INK.secondary }}>
-                      {["Patient", "Visit", "Decision", "Triage", "Mode", "Latency"].map((h) => (
-                        <th key={h} className="py-1.5 pr-4 font-normal">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {view.map((s) => (
-                      <tr key={s.id} className="border-t" style={{ borderColor: "var(--film-shoulder)" }}>
-                        <td className="tabular py-1.5 pr-4">{s.patient_ref || "—"}</td>
-                        <td className="tabular py-1.5 pr-4">{s.follow_up_index + 1}</td>
-                        <td className="py-1.5 pr-4">
-                          {s.is_ood ? "rejected" : s.abstained ? "abstained" : "answered"}
-                        </td>
-                        <td className="tabular py-1.5 pr-4">{s.triage_priority}</td>
-                        <td className="py-1.5 pr-4">{s.mode}</td>
-                        <td className="tabular py-1.5 pr-4">{s.latency_ms}ms</td>
-                      </tr>
-                    ))}
-                    {!view.length && (
-                      <tr>
-                        <td colSpan={6} className="py-3" style={{ color: INK.secondary }}>
-                          No studies in this session.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </ChartFrame>
           </section>
         )}
 
