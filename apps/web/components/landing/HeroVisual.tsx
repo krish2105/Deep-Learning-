@@ -1,8 +1,8 @@
 "use client";
 
+import { useReducedMotion, useScroll } from "motion/react";
 import dynamic from "next/dynamic";
-import { useReducedMotion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HotLight } from "./HotLight";
 
 /**
@@ -12,11 +12,10 @@ import { HotLight } from "./HotLight";
  * initial payload would cost every visitor ~150 KB for something that must be
  * optional anyway.
  *
- * It is skipped entirely when WebGL is unavailable, or when the user prefers
- * reduced motion (a continuously rotating object is exactly what that setting
- * exists to suppress). In both cases the 2D hot-light hero renders instead —
- * which is not a degraded placeholder but the original signature element, and
- * still demonstrates the product.
+ * It is skipped entirely without WebGL, or when the user prefers reduced motion
+ * (a continuously rotating, scroll-driven object is precisely what that setting
+ * exists to suppress). Both fall back to the 2D hot-light hero, which is not a
+ * degraded placeholder but the original signature element.
  */
 
 const Thorax3D = dynamic(() => import("./Thorax3D"), {
@@ -31,10 +30,10 @@ const Thorax3D = dynamic(() => import("./Thorax3D"), {
 
 function webglAvailable(): boolean {
   try {
-    const canvas = document.createElement("canvas");
+    const c = document.createElement("canvas");
     return Boolean(
       window.WebGLRenderingContext &&
-        (canvas.getContext("webgl2") || canvas.getContext("webgl")),
+        (c.getContext("webgl2") || c.getContext("webgl")),
     );
   } catch {
     return false;
@@ -45,12 +44,25 @@ export function HeroVisual() {
   const reduce = useReducedMotion();
   const [mode, setMode] = useState<"pending" | "3d" | "2d">("pending");
 
+  // Assembly is driven by page scroll rather than a timer, so the reader
+  // controls the reveal. A ref (not state) because it updates every frame and
+  // re-rendering React at 60fps to move particles would be absurd.
+  const progress = useRef(0);
+  const { scrollYProgress } = useScroll();
+
   useEffect(() => {
     setMode(!reduce && webglAvailable() ? "3d" : "2d");
   }, [reduce]);
 
-  // Render the 2D hero during the first paint so there is never an empty box,
-  // and so the page is meaningful before any JavaScript decides otherwise.
+  useEffect(() => {
+    // Fully assembled by ~18% of the page, so it is resolved before the reader
+    // reaches the first argument and does not lag behind the copy.
+    progress.current = 0.15;
+    return scrollYProgress.on("change", (v) => {
+      progress.current = Math.min(1, 0.15 + v * 4.7);
+    });
+  }, [scrollYProgress]);
+
   if (mode !== "3d") return <HotLight />;
-  return <Thorax3D />;
+  return <Thorax3D progress={progress} />;
 }

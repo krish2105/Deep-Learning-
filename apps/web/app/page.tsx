@@ -1,36 +1,28 @@
 import Link from "next/link";
 import { ChromaDrain } from "@/components/landing/ChromaDrain";
 import { HeroVisual } from "@/components/landing/HeroVisual";
+import {
+  Architecture,
+  LiveDemo,
+  Marquee,
+  MetricsWall,
+  Pipeline,
+} from "@/components/landing/Sections";
 import { Reveal, SmoothScroll, Stagger, StaggerItem } from "@/components/motion/Primitives";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const SYLLABUS = [
-  { wk: "01–02", topic: "Neural networks & backpropagation", detail: "Backprop from scratch in NumPy; activation and optimiser ablation." },
-  { wk: "03", topic: "Convolutional neural networks", detail: "DenseNet-121 multi-label classifier over 14 thoracic pathologies." },
-  { wk: "04", topic: "Recurrent neural networks", detail: "GRU over per-visit embeddings, forecasting progression." },
-  { wk: "05", topic: "Long short-term memory", detail: "BiLSTM vs GRU vs vanilla RNN on real patient timelines." },
-  { wk: "06", topic: "Generative adversarial networks", detail: "DCGAN synthesises rare findings; measured ΔAUC on minority classes." },
+  { wk: "01–02", topic: "Neural networks & backprop", detail: "From-scratch NumPy backpropagation, verified to 7.2e-11 against finite differences." },
+  { wk: "03", topic: "Convolutional networks", detail: "DenseNet-121 over 14 thoracic pathologies, quantised to 7.9 MB for deployment." },
+  { wk: "04", topic: "Recurrent networks", detail: "GRU over per-visit embeddings — ChestX-ray14 carries real follow-up sequences." },
+  { wk: "05", topic: "Long short-term memory", detail: "RNN vs GRU vs LSTM under identical seeds, with gradient-flow analysis." },
+  { wk: "06", topic: "Generative adversarial nets", detail: "DCGAN synthesises rare findings; measured ΔAUPRC on minority classes." },
   { wk: "07", topic: "Autoencoders & VAEs", detail: "Convolutional VAE rejects anything that is not a chest radiograph." },
-  { wk: "08", topic: "Transfer learning", detail: "ImageNet→CXR; frozen vs progressive unfreezing." },
-  { wk: "09", topic: "Deep reinforcement learning", detail: "DQN orders the worklist to minimise time-to-critical-diagnosis." },
-  { wk: "10", topic: "Vision transformers & CLIP", detail: "ViT-B/16 branch; CNN vs Transformer head-to-head." },
-  { wk: "11", topic: "Generative AI integration", detail: "Reports drafted from model output, never from the image." },
-  { wk: "12", topic: "Ethics & societal impact", detail: "Bias audit by age, sex and view position; equalised-odds gaps." },
-];
-
-const DEFENCES = [
-  {
-    n: "Distributional gate",
-    body: "A variational autoencoder scores reconstruction error. If the image is not a chest radiograph, it is refused before the classifier ever runs — a category error deserves refusal, not a probability.",
-  },
-  {
-    n: "Epistemic uncertainty",
-    body: "Monte-Carlo dropout separates the model's own ignorance from genuine ambiguity in the film. Only ignorance justifies abstention; ambiguity is reported as ambiguity.",
-  },
-  {
-    n: "Conformal prediction",
-    body: "A calibrated nonconformity threshold turns scores into a set with a distribution-free coverage guarantee. When the set is empty or implausibly large, the system abstains.",
-  },
+  { wk: "08", topic: "Transfer learning", detail: "Scratch vs frozen vs full vs progressive unfreezing, plus a data-efficiency curve." },
+  { wk: "09", topic: "Deep reinforcement learning", detail: "Double DQN orders the worklist; beats FIFO by 2× on accumulated urgency cost." },
+  { wk: "10", topic: "Vision transformers & CLIP", detail: "ViT-B/16 against the CNN under equal budgets; BiomedCLIP zero-shot floor." },
+  { wk: "11", topic: "Generative AI integration", detail: "Reports drafted from model output only, with an output verifier that rejects invented findings." },
+  { wk: "12", topic: "Ethics & fairness", detail: "Disaggregated audit by sex, age and view position; the AP/PA shortcut probed directly." },
 ];
 
 export default function Landing() {
@@ -40,7 +32,7 @@ export default function Landing() {
 
       <main id="main">
         {/* ── Hero ─────────────────────────────────────────────────────── */}
-        <section className="mx-auto grid max-w-6xl items-center gap-12 px-6 pt-28 pb-20 lg:grid-cols-[1.1fr_0.9fr] lg:pt-36">
+        <section className="mx-auto grid max-w-6xl items-center gap-12 px-6 pt-28 pb-20 lg:grid-cols-[1.05fr_0.95fr] lg:pt-36">
           <div>
             <Reveal>
               <p className="tabular text-[11px] tracking-[0.28em] text-[var(--film-mid)]">
@@ -49,7 +41,7 @@ export default function Landing() {
             </Reveal>
             <Reveal delay={0.08}>
               <h1
-                className="mt-5 font-[family-name:var(--font-display)] leading-[0.94] tracking-[-0.02em]"
+                className="mt-5 font-[family-name:var(--font-display)] leading-[0.92] tracking-[-0.025em]"
                 style={{ fontSize: "var(--text-hero)" }}
               >
                 It tells you when it doesn&rsquo;t know.
@@ -58,8 +50,8 @@ export default function Landing() {
             <Reveal delay={0.16}>
               <p className="mt-7 max-w-lg text-[var(--text-step-1)] text-[var(--film-mid)]">
                 A chest radiograph triage system with calibrated uncertainty.
-                Fourteen pathologies, a statistical coverage guarantee, and the
-                discipline to abstain rather than guess.
+                Fourteen pathologies, a distribution-free coverage guarantee, and
+                the discipline to abstain rather than guess.
               </p>
             </Reveal>
             <Reveal delay={0.24}>
@@ -69,15 +61,15 @@ export default function Landing() {
                   className="rounded-full px-6 py-3 text-sm font-medium transition-transform hover:scale-[1.02] active:scale-[0.99]"
                   style={{ background: "var(--instrument)", color: "#fff" }}
                 >
-                  Open the console
+                  Open the demo — no sign-up
                 </Link>
-                <a
-                  href="#method"
+                <Link
+                  href="/dashboard"
                   className="rounded-full border px-6 py-3 text-sm font-medium"
                   style={{ borderColor: "var(--film-shoulder)" }}
                 >
-                  How it works
-                </a>
+                  View the dashboard
+                </Link>
               </div>
             </Reveal>
             <Reveal delay={0.32}>
@@ -92,6 +84,9 @@ export default function Landing() {
           </Reveal>
         </section>
 
+        <Marquee />
+        <MetricsWall />
+
         {/* ── The problem ──────────────────────────────────────────────── */}
         <section id="method" className="mx-auto max-w-3xl px-6 py-24">
           <Reveal>
@@ -105,38 +100,45 @@ export default function Landing() {
               Unearned confidence, not accuracy, is what blocks deployment.
             </h2>
             <p className="mt-5 text-[var(--film-mid)]">
-              A model that outputs a probability for every input will output one
-              for a photograph of a cat, for a film degraded at acquisition, and
-              for a case where the evidence genuinely does not support a
-              decision. Fluent and wrong is more dangerous than silent.
+              A model trained with cross-entropy emits a probability for every
+              input — including a photograph, a mispositioned film, and cases
+              where the evidence genuinely does not support a decision. Clinicians
+              are measurably less likely to override a confident machine
+              judgement, so fluent and wrong is more dangerous than silent.
             </p>
           </Reveal>
 
           <Stagger className="mt-12 space-y-4">
-            {DEFENCES.map((d, i) => (
-              <StaggerItem key={d.n}>
+            {[
+              ["Distributional gate", "A variational autoencoder scores reconstruction error. Anything that is not a chest radiograph is refused before the classifier runs — a category error deserves refusal, not a probability."],
+              ["Epistemic uncertainty", "Sampling separates the model's own ignorance from irreducible ambiguity in the film. Only ignorance justifies abstention; ambiguity is reported as ambiguity."],
+              ["Conformal prediction", "A calibrated nonconformity threshold turns scores into a set with distribution-free finite-sample coverage. Empty or implausibly large, and the system abstains."],
+            ].map(([title, body], i) => (
+              <StaggerItem key={title}>
                 <div
                   className="rounded-sm border p-5"
                   style={{ borderColor: "var(--film-shoulder)", background: "var(--film-panel)" }}
                 >
                   <div className="flex items-baseline gap-3">
-                    <span className="tabular text-xs text-[var(--instrument)]">
+                    <span className="tabular text-xs" style={{ color: "var(--instrument)" }}>
                       {String(i + 1).padStart(2, "0")}
                     </span>
-                    <h3 className="font-medium">{d.n}</h3>
+                    <h3 className="font-medium">{title}</h3>
                   </div>
-                  <p className="mt-2 pl-8 text-sm text-[var(--film-mid)]">{d.body}</p>
+                  <p className="mt-2 pl-8 text-sm text-[var(--film-mid)]">{body}</p>
                 </div>
               </StaggerItem>
             ))}
           </Stagger>
         </section>
 
-        {/* ── Signature: chroma drain ──────────────────────────────────── */}
+        <LiveDemo />
         <ChromaDrain />
+        <Pipeline />
+        <Architecture />
 
-        {/* ── Syllabus coverage ────────────────────────────────────────── */}
-        <section className="mx-auto max-w-5xl px-6 py-24">
+        {/* ── Syllabus ─────────────────────────────────────────────────── */}
+        <section className="mx-auto max-w-6xl px-6 py-24">
           <Reveal>
             <p className="tabular text-[11px] tracking-[0.28em] text-[var(--film-mid)]">
               TWELVE WEEKS, ONE SYSTEM
@@ -150,16 +152,15 @@ export default function Landing() {
             <p className="mt-5 max-w-2xl text-[var(--film-mid)]">
               Not eleven disconnected exercises. The recurrent branch exists
               because ChestX-ray14 carries patient identifiers and follow-up
-              numbers, so a patient&rsquo;s studies form a real timeline.
+              numbers, so a patient&rsquo;s studies form a genuine timeline.
             </p>
           </Reveal>
 
-          <Stagger className="mt-12 grid gap-px overflow-hidden rounded-sm border sm:grid-cols-2 lg:grid-cols-3"
-            >
+          <Stagger className="mt-12 grid gap-px overflow-hidden rounded-sm border sm:grid-cols-2 lg:grid-cols-3">
             {SYLLABUS.map((s) => (
               <StaggerItem key={s.wk}>
                 <div className="h-full p-5" style={{ background: "var(--film-panel)" }}>
-                  <span className="tabular text-[11px] tracking-widest text-[var(--instrument)]">
+                  <span className="tabular text-[11px] tracking-widest" style={{ color: "var(--instrument)" }}>
                     WK {s.wk}
                   </span>
                   <h3 className="mt-2 text-sm font-medium">{s.topic}</h3>
@@ -172,50 +173,8 @@ export default function Landing() {
           </Stagger>
         </section>
 
-        {/* ── Architecture ─────────────────────────────────────────────── */}
-        <section className="mx-auto max-w-4xl px-6 py-24">
-          <Reveal>
-            <p className="tabular text-[11px] tracking-[0.28em] text-[var(--film-mid)]">
-              ARCHITECTURE
-            </p>
-            <h2
-              className="mt-4 font-[family-name:var(--font-display)] leading-[1.05]"
-              style={{ fontSize: "var(--text-step-4)" }}
-            >
-              Built around a hard constraint.
-            </h2>
-            <p className="mt-5 text-[var(--film-mid)]">
-              Render&rsquo;s free tier gives 512&nbsp;MB of memory. PyTorch does
-              not fit. So inference lives on Hugging Face Spaces with 16&nbsp;GB,
-              and the orchestrator keeps a quantised ONNX path in reserve. When
-              the Space is cold, the fast path answers immediately and the
-              interface says so.
-            </p>
-          </Reveal>
-
-          <Reveal delay={0.1}>
-            <div
-              className="tabular mt-10 overflow-x-auto rounded-sm border p-6 text-xs leading-relaxed"
-              style={{ borderColor: "var(--film-shoulder)", background: "var(--film-panel)" }}
-            >
-              <pre className="min-w-max text-[var(--film-mid)]">{`  Vercel ─────────── Next.js 15 · console + landing
-     │
-     ▼  HTTPS + JWT
-  Render ─────────── FastAPI · 512 MB · no PyTorch
-     │               conformal head · audit log
-     ├── cold ─────▶ ONNX int8 · < 900 ms · reduced mode
-     │
-     ▼  warm
-  HF Spaces ──────── 16 GB · DenseNet · ViT · VAE · LSTM · Grad-CAM
-     │
-     ▼
-  Supabase ───────── Postgres + object storage`}</pre>
-            </div>
-          </Reveal>
-        </section>
-
         {/* ── Team ─────────────────────────────────────────────────────── */}
-        <section className="mx-auto max-w-4xl px-6 py-24">
+        <section className="mx-auto max-w-4xl px-6 pb-24">
           <Reveal>
             <p className="tabular text-[11px] tracking-[0.28em] text-[var(--film-mid)]">
               GROUP
@@ -240,10 +199,7 @@ export default function Landing() {
         </section>
       </main>
 
-      <footer
-        className="border-t px-6 py-10"
-        style={{ borderColor: "var(--film-shoulder)" }}
-      >
+      <footer className="border-t px-6 py-10" style={{ borderColor: "var(--film-shoulder)" }}>
         <div className="mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-[var(--film-mid)]">
             SENTINEL-CXR — research prototype. Not a medical device. Must not be
@@ -281,14 +237,14 @@ function Nav() {
         <Link href="/" className="tabular text-sm font-semibold tracking-[0.12em]">
           SENTINEL<span style={{ color: "var(--instrument)" }}>·</span>CXR
         </Link>
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
-          <Link
-            href="/dashboard"
-            className="hidden rounded-full px-3 py-2 text-xs text-[var(--film-mid)] sm:block"
-          >
+        <div className="flex items-center gap-2 sm:gap-3">
+          <a href="#method" className="hidden rounded-full px-3 py-2 text-xs text-[var(--film-mid)] sm:block">
+            Method
+          </a>
+          <Link href="/dashboard" className="hidden rounded-full px-3 py-2 text-xs text-[var(--film-mid)] sm:block">
             Dashboard
           </Link>
+          <ThemeToggle />
           <Link
             href="/console"
             className="rounded-full px-4 py-2 text-xs font-medium"
