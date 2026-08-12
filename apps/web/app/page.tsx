@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChromaDrain } from "@/components/landing/ChromaDrain";
-import { HotLight } from "@/components/landing/HotLight";
+import { HeroVisual } from "@/components/landing/HeroVisual";
 import { Reveal, SmoothScroll, Stagger, StaggerItem } from "@/components/motion/Primitives";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -88,7 +88,7 @@ export default function Landing() {
           </div>
 
           <Reveal delay={0.2} className="justify-self-center lg:justify-self-end">
-            <HotLight />
+            <HeroVisual />
           </Reveal>
         </section>
 
@@ -283,6 +283,12 @@ function Nav() {
         </Link>
         <div className="flex items-center gap-3">
           <ThemeToggle />
+          <Link
+            href="/dashboard"
+            className="hidden rounded-full px-3 py-2 text-xs text-[var(--film-mid)] sm:block"
+          >
+            Dashboard
+          </Link>
           <Link
             href="/console"
             className="rounded-full px-4 py-2 text-xs font-medium"

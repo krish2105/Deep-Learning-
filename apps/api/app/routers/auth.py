@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import AuditEntry, User, get_db
 from ..schemas import Token, UserCreate, UserOut
+from ..services.demo import create_sandbox
 from ..security import (
     create_access_token,
     get_current_user,
@@ -76,6 +77,23 @@ async def login(
     db.add(AuditEntry(user_id=user.id, action="user_login", detail={}))
     await db.commit()
 
+    return Token(
+        access_token=create_access_token(user.id), user=UserOut.model_validate(user)
+    )
+
+
+@router.post("/demo", response_model=Token, status_code=status.HTTP_201_CREATED)
+async def demo(db: AsyncSession = Depends(get_db)) -> Token:
+    """Issue a throwaway sandbox pre-loaded with a demo worklist.
+
+    Exists so a reviewer can open the console and see a working clinical system
+    without creating an account. Each caller gets an isolated user, so one
+    visitor's uploads are never visible to the next -- a single shared demo
+    account on a public URL would show whatever the last person uploaded.
+
+    Sandboxes are purged after 24 hours.
+    """
+    user = await create_sandbox(db)
     return Token(
         access_token=create_access_token(user.id), user=UserOut.model_validate(user)
     )

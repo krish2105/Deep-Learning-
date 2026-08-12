@@ -11,6 +11,7 @@ export function AuthPanel({ onAuth }: { onAuth: (u: User) => void }) {
   const [fullName, setFullName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [demoBusy, setDemoBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -95,6 +96,44 @@ export function AuthPanel({ onAuth }: { onAuth: (u: User) => void }) {
             {busy ? "Working…" : mode === "login" ? "Sign in" : "Create account"}
           </button>
         </form>
+
+        {/* Demo entry. A reviewer must be able to see a working clinical system
+            without creating an account — a signup wall on an assessed
+            submission is friction with no upside. */}
+        <div className="mt-6 flex items-center gap-3">
+          <span className="h-px flex-1" style={{ background: "var(--film-shoulder)" }} />
+          <span className="text-[10px] tracking-widest text-[var(--film-mid)]">OR</span>
+          <span className="h-px flex-1" style={{ background: "var(--film-shoulder)" }} />
+        </div>
+
+        <button
+          onClick={async () => {
+            setError("");
+            setDemoBusy(true);
+            try {
+              const res = await api.demo();
+              auth.set(res.access_token);
+              onAuth(res.user);
+            } catch (err) {
+              setError(
+                err instanceof ApiError
+                  ? err.message
+                  : "Could not start the demo. Is the API reachable?",
+              );
+            } finally {
+              setDemoBusy(false);
+            }
+          }}
+          disabled={demoBusy}
+          className="mt-4 w-full rounded-sm border px-4 py-2.5 text-sm font-medium disabled:opacity-60"
+          style={{ borderColor: "var(--instrument)", color: "var(--instrument)" }}
+        >
+          {demoBusy ? "Preparing sandbox…" : "Explore the demo — no sign-up"}
+        </button>
+        <p className="mt-2 text-[11px] text-[var(--film-mid)]">
+          Opens a private sandbox pre-loaded with five studies covering triage,
+          abstention, progression and a rejected upload. Expires after 24 hours.
+        </p>
 
         <button
           onClick={() => {

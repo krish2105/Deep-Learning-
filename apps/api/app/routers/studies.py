@@ -72,6 +72,7 @@ def _to_out(study: Study) -> StudyOut:
         conformal=study.conformal or None,
         progression=study.progression or None,
         gradcam=study.gradcam or {},
+        uncertainty=study.uncertainty or {},
         triage_score=study.triage_score,
         triage_priority=study.triage_priority,
         triage_rationale=study.triage_rationale,

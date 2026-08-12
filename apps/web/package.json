@@ -10,13 +10,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.7.0",
     "clsx": "^2.1.1",
     "lenis": "^1.1.18",
     "motion": "^12.0.0",
     "next": "^15.5.23",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "tailwind-merge": "^2.6.0"
+    "tailwind-merge": "^2.6.0",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",

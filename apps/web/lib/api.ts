@@ -89,6 +89,12 @@ export const api = {
     });
   },
 
+  /** Issue a throwaway sandbox pre-loaded with demo studies. No signup. */
+  demo: () =>
+    request<{ access_token: string; user: User }>("/api/v1/auth/demo", {
+      method: "POST",
+    }),
+
   me: () => request<User>("/api/v1/auth/me"),
 
   analyze: (file: File, patientRef = "", followUp = 0) => {

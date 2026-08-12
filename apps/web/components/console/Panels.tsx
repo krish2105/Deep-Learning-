@@ -2,6 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { AbstainBanner, ConfidenceChip } from "@/components/ConfidenceChip";
+import {
+  CoveragePlot,
+  FairnessBars,
+  ProbabilityBars,
+  ProgressionChart,
+  UncertaintyStack,
+} from "@/components/charts/ClinicalCharts";
+import { PrintableReport } from "@/components/console/PrintableReport";
 import { api } from "@/lib/api";
 import type { CalibrationState, Study } from "@/lib/types";
 import { chromaColor, uncertaintyLabel } from "@/lib/utils";
@@ -17,7 +25,16 @@ export const TABS = [
 ] as const;
 export type Tab = (typeof TABS)[number];
 
-export function Panel({ tab, study }: { tab: Tab; study: Study }) {
+export function Panel({
+  tab,
+  study,
+  siblings = [],
+}: {
+  tab: Tab;
+  study: Study;
+  /** Other studies for the same patient, so progression can be plotted. */
+  siblings?: Study[];
+}) {
   switch (tab) {
     case "Overview":
       return <Overview study={study} />;
@@ -26,7 +43,7 @@ export function Panel({ tab, study }: { tab: Tab; study: Study }) {
     case "Explainability":
       return <Explainability study={study} />;
     case "Progression":
-      return <Progression study={study} />;
+      return <Progression study={study} siblings={siblings} />;
     case "Uncertainty":
       return <Uncertainty study={study} />;
     case "Fairness":
@@ -124,6 +141,8 @@ function Findings({ study }: { study: Study }) {
 
   return (
     <div className="space-y-4">
+      <ProbabilityBars findings={study.findings} />
+
       <div className="space-y-1.5">
         {study.findings.map((f) => (
           <ConfidenceChip
@@ -213,14 +232,17 @@ function Explainability({ study }: { study: Study }) {
   );
 }
 
-function Progression({ study }: { study: Study }) {
+function Progression({ study, siblings }: { study: Study; siblings: Study[] }) {
   const p = study.progression;
   if (!p?.available) {
     return (
-      <Empty
-        title="No prior studies"
-        body="Upload another study with the same patient reference to compare across time. The recurrent branch reads the sequence of visits."
-      />
+      <div className="space-y-4">
+        <Empty
+          title="No prior studies"
+          body="Upload another study with the same patient reference to compare across time. The recurrent branch reads the sequence of visits."
+        />
+        <ProgressionChart studies={siblings} />
+      </div>
     );
   }
 
@@ -233,6 +255,8 @@ function Progression({ study }: { study: Study }) {
 
   return (
     <div className="space-y-4">
+      <ProgressionChart studies={siblings} />
+
       <div
         className="rounded-sm border p-4"
         style={{ borderColor: "var(--film-shoulder)", background: "var(--film-panel)" }}
@@ -311,12 +335,9 @@ function Uncertainty({ study }: { study: Study }) {
         </p>
       )}
 
-      {withUncertainty.length === 0 ? (
-        <Empty
-          title="No uncertainty decomposition"
-          body="Monte-Carlo dropout runs only on the full inference path. This study was served by the fast path."
-        />
-      ) : (
+      <UncertaintyStack findings={study.findings} />
+
+      {withUncertainty.length === 0 ? null : (
         <div
           className="rounded-sm border px-4 py-2"
           style={{ borderColor: "var(--film-shoulder)", background: "var(--film-panel)" }}
@@ -360,6 +381,22 @@ function Uncertainty({ study }: { study: Study }) {
         </div>
       )}
 
+      <CoveragePlot
+        coverage={
+          cal?.fitted
+            ? Object.entries(cal.thresholds).map(([k, v]) => ({
+                label: k.replace(/_/g, " "),
+                // Realised coverage comes from the evaluation notebook; until
+                // that artefact exists the threshold is all we can honestly
+                // show, so the plot renders its empty state instead.
+                value: v.probability_threshold,
+                n: v.n_calibration_positives,
+              }))
+            : []
+        }
+        target={cal?.coverage_target ?? 0.9}
+      />
+
       {cal?.fitted && (
         <div
           className="rounded-sm border px-4 py-2"
@@ -396,26 +433,37 @@ function Fairness() {
 
   if (loading) return <p className="text-sm text-[var(--film-mid)]">Loading…</p>;
 
-  if (!data?.available) {
-    return (
-      <Empty
-        title="Fairness audit not yet run"
-        body={
-          (data?.message as string) ??
-          "Run notebooks/11_fairness_ethics.ipynb and place fairness_report.json in apps/api/artifacts/."
-        }
-      />
-    );
-  }
+  const gaps = (data?.gaps as { stratum: string; tpr_gap: number; fpr_gap: number }[]) ?? [];
+  const tolerance = (data?.tolerance as number) ?? 0.1;
 
   return (
-    <div
-      className="rounded-sm border p-4"
-      style={{ borderColor: "var(--film-shoulder)", background: "var(--film-panel)" }}
-    >
-      <pre className="tabular overflow-x-auto text-[11px] text-[var(--film-mid)]">
-        {JSON.stringify(data, null, 2)}
-      </pre>
+    <div className="space-y-4">
+      <FairnessBars gaps={gaps} tolerance={tolerance} />
+
+      {!data?.available && (
+        <p
+          className="rounded-sm border px-3 py-2 text-[11px]"
+          style={{ borderColor: "var(--film-shoulder)", color: "var(--film-mid)" }}
+        >
+          Learning outcome E is assessed only in the final project, so this is a
+          graded surface rather than an appendix. When the audit has not been run
+          the system says so, instead of showing invented numbers.
+        </p>
+      )}
+
+      {Boolean(data?.available) && (
+        <details
+          className="rounded-sm border p-3"
+          style={{ borderColor: "var(--film-shoulder)", background: "var(--film-panel)" }}
+        >
+          <summary className="cursor-pointer text-[11px] text-[var(--film-mid)]">
+            Raw audit output
+          </summary>
+          <pre className="tabular mt-2 overflow-x-auto text-[10px] text-[var(--film-mid)]">
+            {JSON.stringify(data, null, 2)}
+          </pre>
+        </details>
+      )}
     </div>
   );
 }
@@ -424,10 +472,22 @@ function Report({ study }: { study: Study }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="space-y-3">
+      {/* Rendered off-screen; the print stylesheet is what reveals it. */}
+      <div className="print-root">
+        <PrintableReport study={study} />
+      </div>
+
       <div className="flex items-center gap-2">
         <span className="tabular text-[11px] text-[var(--film-mid)]">
           SOURCE: {(study.report_source || "—").toUpperCase()}
         </span>
+        <button
+          onClick={() => window.print()}
+          className="rounded-sm px-2.5 py-1 text-[11px] font-medium"
+          style={{ background: "var(--instrument)", color: "#fff" }}
+        >
+          Export PDF
+        </button>
         <button
           onClick={() => {
             navigator.clipboard.writeText(study.report_text);

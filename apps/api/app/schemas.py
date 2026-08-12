@@ -81,6 +81,9 @@ class StudyOut(BaseModel):
     conformal: ConformalOut | None = None
     progression: ProgressionOut | None = None
     gradcam: dict = Field(default_factory=dict)
+    # Raw decomposition, so the uncertainty chart can plot the aleatoric and
+    # epistemic components rather than re-deriving them in the browser.
+    uncertainty: dict = Field(default_factory=dict)
 
     triage_score: float
     triage_priority: str

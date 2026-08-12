@@ -49,6 +49,7 @@ export default function Console() {
 
 function Workspace({ user, onSignOut }: { user: User; onSignOut: () => void }) {
   const [worklist, setWorklist] = useState<WorklistItem[]>([]);
+  const [studies, setStudies] = useState<Study[]>([]);
   const [study, setStudy] = useState<Study | null>(null);
   const [tab, setTab] = useState<Tab>("Overview");
   const [ready, setReady] = useState<ReadyState | null>(null);
@@ -59,7 +60,9 @@ function Workspace({ user, onSignOut }: { user: User; onSignOut: () => void }) {
 
   const refresh = useCallback(async () => {
     try {
-      setWorklist(await api.worklist());
+      const [w, s] = await Promise.all([api.worklist(), api.studies()]);
+      setWorklist(w);
+      setStudies(s);
     } catch {
       /* worklist failure must not blank the screen */
     }
@@ -285,7 +288,13 @@ function Workspace({ user, onSignOut }: { user: User; onSignOut: () => void }) {
                 ))}
               </div>
               <div className="flex-1 overflow-y-auto p-3">
-                <Panel tab={tab} study={study} />
+                <Panel
+                  tab={tab}
+                  study={study}
+                  siblings={studies.filter(
+                    (s) => s.patient_ref && s.patient_ref === study.patient_ref,
+                  )}
+                />
               </div>
             </>
           ) : (

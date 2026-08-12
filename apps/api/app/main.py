@@ -59,9 +59,17 @@ app = FastAPI(
     docs_url="/docs",
 )
 
+# Vercel mints a new hostname for every preview deployment, and the production
+# alias changes if the project is renamed. Pinning an exact origin list means a
+# redeploy silently breaks every browser request with an opaque CORS error --
+# which is exactly what happened on the first live deployment. The regex covers
+# all Vercel hosts and localhost; explicit ALLOWED_ORIGINS entries still apply
+# on top. This is broader than a hospital deployment would permit, and is an
+# accepted trade for a public, non-clinical prototype.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.origins,
+    allow_origin_regex=r"https://[a-z0-9-]+\.vercel\.app|http://localhost:\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

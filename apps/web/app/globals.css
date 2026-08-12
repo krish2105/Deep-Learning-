@@ -149,6 +149,162 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--film-mid); }
 
+/* ── Print / PDF export ────────────────────────────────────────────────
+   The browser's own print-to-PDF produces selectable vector text and costs no
+   library and no server CPU. Only .print-report is shown; everything else in
+   the application is suppressed. */
+.print-report {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 14mm 16mm;
+  }
+
+  body > *:not(.print-root),
+  header,
+  nav,
+  aside,
+  footer:not(.pr-foot) {
+    display: none !important;
+  }
+
+  .print-root {
+    display: block !important;
+  }
+
+  .print-report {
+    display: block;
+    color: #000;
+    background: #fff;
+    font-family: var(--font-sans);
+    font-size: 9.5pt;
+    line-height: 1.45;
+  }
+
+  .print-report h1 {
+    font-size: 19pt;
+    letter-spacing: 0.06em;
+    margin: 0;
+  }
+  .print-report h2 {
+    font-size: 11pt;
+    margin: 12pt 0 4pt;
+    padding-bottom: 2pt;
+    border-bottom: 0.5pt solid #999;
+    break-after: avoid;
+  }
+  .print-report .pr-sub {
+    font-size: 9.5pt;
+    color: #444;
+    margin: 2pt 0 0;
+  }
+
+  .pr-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 1.5pt solid #1b7d97;
+    padding-bottom: 6pt;
+  }
+  .pr-meta {
+    font-family: var(--font-mono);
+    font-size: 8pt;
+    color: #444;
+    text-align: right;
+  }
+
+  .pr-banner {
+    margin: 8pt 0;
+    padding: 5pt 7pt;
+    border: 0.75pt solid #b8322e;
+    color: #b8322e;
+    font-size: 7.6pt;
+    line-height: 1.35;
+  }
+
+  .pr-grid {
+    display: flex;
+    gap: 8pt;
+    margin: 8pt 0;
+  }
+  .pr-grid figure {
+    margin: 0;
+    flex: 1;
+    position: relative;
+  }
+  .pr-grid img {
+    width: 100%;
+    background: #000;
+    /* Radiographs must print at full tonal range; browsers strip backgrounds
+       by default, which would render the film as a white rectangle. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .pr-cam {
+    position: relative;
+  }
+  .pr-overlay {
+    position: absolute;
+    inset: 0;
+    mix-blend-mode: screen;
+  }
+  .pr-grid figcaption {
+    font-size: 7.5pt;
+    color: #555;
+    margin-top: 2pt;
+  }
+
+  .print-report table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.4pt;
+    margin: 4pt 0;
+  }
+  .print-report th {
+    background: #1b7d97;
+    color: #fff;
+    text-align: left;
+    padding: 3pt 5pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-report td {
+    padding: 3pt 5pt;
+    border-bottom: 0.4pt solid #ddd;
+  }
+  .print-report td.num {
+    font-family: var(--font-mono);
+    text-align: right;
+  }
+
+  .print-report pre {
+    white-space: pre-wrap;
+    font-family: var(--font-mono);
+    font-size: 8pt;
+    background: #f5f6f7;
+    padding: 6pt;
+    border: 0.4pt solid #ddd;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .pr-abstain {
+    border-left: 2pt solid #9a6414;
+    padding-left: 6pt;
+  }
+
+  .pr-foot {
+    margin-top: 12pt;
+    padding-top: 5pt;
+    border-top: 0.5pt solid #bbb;
+    font-size: 7.4pt;
+    color: #555;
+  }
+}
+
 /* The single most important accessibility rule in the stylesheet. */
 @media (prefers-reduced-motion: reduce) {
   *,
