@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChromaDrain } from "@/components/landing/ChromaDrain";
-import { HeroVisual } from "@/components/landing/HeroVisual";
+import { Hero } from "@/components/landing/Hero";
 import {
   Architecture,
   LiveDemo,
@@ -30,60 +30,9 @@ export default function Landing() {
     <SmoothScroll>
       <Nav />
 
-      <main id="main">
-        {/* ── Hero ─────────────────────────────────────────────────────── */}
-        <section className="mx-auto grid max-w-6xl items-center gap-12 px-6 pt-28 pb-20 lg:grid-cols-[1.05fr_0.95fr] lg:pt-36">
-          <div>
-            <Reveal>
-              <p className="tabular text-[11px] tracking-[0.28em] text-[var(--film-mid)]">
-                MAIB AI 114 · FINAL GROUP PROJECT
-              </p>
-            </Reveal>
-            <Reveal delay={0.08}>
-              <h1
-                className="mt-5 font-[family-name:var(--font-display)] leading-[0.92] tracking-[-0.025em]"
-                style={{ fontSize: "var(--text-hero)" }}
-              >
-                It tells you when it doesn&rsquo;t know.
-              </h1>
-            </Reveal>
-            <Reveal delay={0.16}>
-              <p className="mt-7 max-w-lg text-[var(--text-step-1)] text-[var(--film-mid)]">
-                A chest radiograph triage system with calibrated uncertainty.
-                Fourteen pathologies, a distribution-free coverage guarantee, and
-                the discipline to abstain rather than guess.
-              </p>
-            </Reveal>
-            <Reveal delay={0.24}>
-              <div className="mt-9 flex flex-wrap items-center gap-3">
-                <Link
-                  href="/console"
-                  className="rounded-full px-6 py-3 text-sm font-medium transition-transform hover:scale-[1.02] active:scale-[0.99]"
-                  style={{ background: "var(--instrument)", color: "#fff" }}
-                >
-                  Open the demo — no sign-up
-                </Link>
-                <Link
-                  href="/dashboard"
-                  className="rounded-full border px-6 py-3 text-sm font-medium"
-                  style={{ borderColor: "var(--film-shoulder)" }}
-                >
-                  View the dashboard
-                </Link>
-              </div>
-            </Reveal>
-            <Reveal delay={0.32}>
-              <p className="mt-8 max-w-md text-xs text-[var(--film-mid)]">
-                Research prototype. Not a medical device, and not for clinical use.
-              </p>
-            </Reveal>
-          </div>
+      <Hero />
 
-          <Reveal delay={0.2} className="justify-self-center lg:justify-self-end">
-            <HeroVisual />
-          </Reveal>
-        </section>
-
+      <main id="main" className="page-surface">
         <Marquee />
         <MetricsWall />
 
@@ -199,7 +148,7 @@ export default function Landing() {
         </section>
       </main>
 
-      <footer className="border-t px-6 py-10" style={{ borderColor: "var(--film-shoulder)" }}>
+      <footer className="page-surface border-t px-6 py-10" style={{ borderColor: "var(--film-shoulder)" }}>
         <div className="mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-[var(--film-mid)]">
             SENTINEL-CXR — research prototype. Not a medical device. Must not be

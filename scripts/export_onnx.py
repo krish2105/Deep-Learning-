@@ -46,12 +46,26 @@ MAX_MEAN_ABS_DIFF = 0.05
 
 
 class Reordered(torch.nn.Module):
-    """Wraps the classifier so ONNX emits our 14 labels in canonical order.
+    """Emits our 14 labels in canonical order, plus a class activation map each.
 
-    TorchXRayVision publishes 18 heads in a different order. Doing the reorder
-    inside the graph means the orchestrator never has to know about the
-    upstream ordering, and a future weight swap cannot silently misalign
-    labels — the mapping is baked in and exported with the model.
+    Two jobs, both about making the orchestrator self-sufficient.
+
+    **Label order.** TorchXRayVision publishes 18 heads in a different order.
+    Baking the reorder into the graph means a future weight swap cannot
+    silently misalign labels.
+
+    **Explainability without gradients.** Grad-CAM needs a backward pass, which
+    ONNX Runtime does not do, so the fast path had no heat maps at all and the
+    Explainability tab sat empty unless a Hugging Face Space was running. But
+    DenseNet ends in global average pooling followed by a linear layer, which
+    is exactly the architecture classic CAM (Zhou et al., 2016) was defined
+    for: the class map is the classifier's weights applied across the final
+    feature maps. That needs only the forward pass we are already doing, so the
+    14 maps are computed inside the graph and returned alongside the scores —
+    686 extra floats.
+
+    This is CAM, not Grad-CAM. It is reported as such in the interface: the two
+    agree for this architecture but they are not the same method.
     """
 
     def __init__(self, model, source_order: list[str]) -> None:
@@ -67,10 +81,48 @@ class Reordered(torch.nn.Module):
                 mask.append(0.0)
         self.register_buffer("idx", torch.tensor(idx, dtype=torch.long))
         self.register_buffer("mask", torch.tensor(mask, dtype=torch.float32))
+        # Classifier weights reordered to our label order: (14, 1024)
+        w = model.classifier.weight.detach()
+        self.register_buffer("cam_w", w.index_select(0, torch.tensor(idx)))
+        ot = getattr(model, "op_threshs", None)
+        if ot is not None:
+            self.register_buffer("op_threshs", ot.detach().clone())
+        else:
+            self.op_threshs = None
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out = self.model(x)
-        return out.index_select(1, self.idx) * self.mask
+    def forward(self, x: torch.Tensor):
+        # The backbone runs ONCE. Calling model(x) and model.features(x)
+        # separately duplicates the whole convolutional subgraph, which the
+        # dynamic quantiser then refuses to process ("expected ... to be an
+        # initializer"). Deriving both outputs from a single feature tensor is
+        # also simply correct: they are two views of the same activation.
+        feats = torch.nn.functional.relu(self.model.features(x))
+
+        pooled = torch.nn.functional.adaptive_avg_pool2d(feats, (1, 1)).flatten(1)
+        logits = self.model.classifier(pooled)
+        probs = torch.sigmoid(logits)
+        if self.op_threshs is not None:
+            # TorchXRayVision normalises each head against its operating point,
+            # so 0.5 means "at threshold" rather than "no idea". Replicating it
+            # keeps the exported model numerically identical to the source.
+            #
+            # Written with torch.where rather than the upstream boolean-mask
+            # assignment: masked in-place writes do not trace to ONNX (they
+            # emit a Reshape against a data-dependent shape, which fails at
+            # runtime). NaN thresholds mark heads this checkpoint does not
+            # predict, and those stay at 0.5.
+            t = self.op_threshs
+            valid = ~torch.isnan(t)
+            t_safe = torch.where(valid, t, torch.full_like(t, 0.5))
+            below = probs / (t_safe * 2.0)
+            above = 1.0 - ((1.0 - probs) / ((1.0 - t_safe) * 2.0))
+            normed = torch.where(probs < t_safe, below, above)
+            probs = torch.where(valid, normed, torch.full_like(normed, 0.5))
+        scores = probs.index_select(1, self.idx) * self.mask
+
+        # CAM_c(h,w) = sum_k W[c,k] * A_k(h,w)   -> (B, 14, 7, 7)
+        cams = torch.einsum("ck,bkhw->bchw", self.cam_w, feats)
+        return scores, cams
 
 
 def _pinned_onnxruntime() -> str | None:
@@ -111,8 +163,12 @@ def main() -> None:
         dummy,
         str(FP32),
         input_names=["image"],
-        output_names=["scores"],
-        dynamic_axes={"image": {0: "batch"}, "scores": {0: "batch"}},
+        output_names=["scores", "cams"],
+        dynamic_axes={
+            "image": {0: "batch"},
+            "scores": {0: "batch"},
+            "cams": {0: "batch"},
+        },
         opset_version=17,
         do_constant_folding=True,
         dynamo=False,
@@ -172,8 +228,9 @@ def main() -> None:
     for t in range(trials):
         x = (torch.rand(1, 1, 224, 224) * 2048.0) - 1024.0
         with torch.no_grad():
-            ref = torch.sigmoid(model(x))[0].numpy()
-        got = 1.0 / (1.0 + np.exp(-np.asarray(sess.run(None, {name: x.numpy()})[0]).ravel()))
+            ref = torch.sigmoid(model(x)[0])[0].numpy()
+        outs = sess.run(None, {name: x.numpy()})
+        got = 1.0 / (1.0 + np.exp(-np.asarray(outs[0]).ravel()))
         diffs.append(float(np.abs(ref - got).mean()))
         if np.argmax(ref) == np.argmax(got):
             rank_ok += 1
@@ -193,6 +250,9 @@ def main() -> None:
 
     # The fp32 file is only an intermediate; it is ~28 MB and not worth committing.
     FP32.unlink(missing_ok=True)
+    cam_shape = sess.get_outputs()[1].shape
+    print(f"  cam output         : {cam_shape}  (one activation map per label)")
+
     print(f"\nWrote {INT8.relative_to(ROOT)}")
     print("The orchestrator now serves real predictions with no Hugging Face Space.")
 

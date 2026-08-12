@@ -199,7 +199,8 @@ class InferenceClient:
         started = time.perf_counter()
         tensor = self._preprocess(image_bytes)
         name = session.get_inputs()[0].name
-        out = np.asarray(session.run(None, {name: tensor})[0]).ravel()
+        outputs = session.run(None, {name: tensor})
+        out = np.asarray(outputs[0]).ravel()
 
         # The exported graph already ends in a sigmoid — TorchXRayVision applies
         # it inside forward(). Applying it a second time maps [0,1] onto
@@ -210,15 +211,85 @@ class InferenceClient:
         if probs.min() < 0.0 or probs.max() > 1.0:
             probs = 1.0 / (1.0 + np.exp(-probs))
 
+        # Class activation maps, if the exported graph provides them.
+        cams: dict[str, str] = {}
+        if len(outputs) > 1:
+            try:
+                cams = self._cams_to_overlays(np.asarray(outputs[1])[0], probs)
+            except Exception as exc:  # noqa: BLE001 - explanation is not worth a 500
+                log.warning("CAM rendering failed: %s", exc)
+
         return InferenceResult(
             probabilities=probs,
             mc_samples=None,
             ood_score=0.0,  # the VAE gate lives on the Space
-            gradcam={},
+            gradcam=cams,
             mode="reduced",
-            backend="onnx-int8-local",
+            backend="onnx-int8-local(cam)",
             latency_ms=int((time.perf_counter() - started) * 1000),
         )
+
+    @staticmethod
+    def _cams_to_overlays(
+        cams: np.ndarray, probs: np.ndarray, top_k: int = 3, size: int = 224
+    ) -> dict[str, str]:
+        """Render the top findings' activation maps as base64 PNG overlays.
+
+        This is classic CAM (Zhou et al., 2016), not Grad-CAM: DenseNet ends in
+        global average pooling followed by a linear layer, so the class map is
+        the classifier weights applied across the final feature maps and needs
+        no backward pass. ONNX Runtime cannot compute gradients, so this is what
+        makes explanation possible at all on the fast path.
+
+        The same caveat applies as to Grad-CAM, and is stated in the interface:
+        it shows where activation correlates with the score, not why a decision
+        was made.
+        """
+        import base64  # noqa: PLC0415
+        import io  # noqa: PLC0415
+
+        from PIL import Image  # noqa: PLC0415
+
+        out: dict[str, str] = {}
+        for idx in np.argsort(probs)[::-1][:top_k]:
+            if probs[idx] < 0.20:
+                continue
+            cam = cams[idx].astype(np.float32)
+            span = float(cam.max() - cam.min())
+            if span < 1e-6:
+                # A flat map means no localised evidence. Normalising it would
+                # amplify numerical noise into a confident-looking blob.
+                continue
+
+            # Min-max over the RAW map, deliberately without a ReLU.
+            #
+            # Grad-CAM rectifies because there a negative gradient-activation
+            # product means the region argues against the class. Classic CAM is
+            # different: w_c . A is an evidence field whose absolute offset is
+            # absorbed by the classifier bias, so a map can sit entirely below
+            # zero while still localising perfectly well. Rectifying it here
+            # zeroed the maps for eleven of fourteen pathologies and left the
+            # Explainability tab almost empty — the relative maxima are the
+            # signal, not the sign.
+            cam = (cam - cam.min()) / span
+
+            img = Image.fromarray((cam * 255).astype(np.uint8)).resize(
+                (size, size), Image.BICUBIC
+            )
+            a = np.asarray(img, dtype=np.float32) / 255.0
+
+            rgba = np.zeros((size, size, 4), dtype=np.uint8)
+            rgba[..., 0] = np.clip(255 * np.clip(a * 2 - 0.4, 0, 1), 0, 255)
+            rgba[..., 1] = np.clip(255 * np.clip(1.6 - np.abs(a - 0.55) * 3.2, 0, 1), 0, 255)
+            rgba[..., 2] = np.clip(255 * np.clip(1.0 - a * 2.2, 0, 1), 0, 255)
+            rgba[..., 3] = (np.clip(a - 0.25, 0, 1) / 0.75 * 210).astype(np.uint8)
+
+            buf = io.BytesIO()
+            Image.fromarray(rgba, mode="RGBA").save(buf, format="PNG", optimize=True)
+            out[PATHOLOGIES[idx]] = (
+                "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+            )
+        return out
 
     @staticmethod
     def _preprocess(image_bytes: bytes) -> np.ndarray:

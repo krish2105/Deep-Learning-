@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 
 from .config import get_settings
 from .db import init_db
-from .routers import auth, studies, system
+from .routers import auth, intelligence, studies, system
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)-8s %(name)s: %(message)s"
@@ -162,6 +162,7 @@ async def unhandled(request: Request, exc: Exception):
 app.include_router(auth.router)
 app.include_router(studies.router)
 app.include_router(system.router)
+app.include_router(intelligence.router)
 
 
 @app.get("/", tags=["system"])
