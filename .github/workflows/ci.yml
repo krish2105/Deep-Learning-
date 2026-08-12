@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  api:
+    name: API — tests and safety gates
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio
+
+      - name: Test
+        run: pytest -q
+
+      # The project's central claim is a coverage guarantee. If this regresses,
+      # the system is making a promise it does not keep, so it fails the build
+      # rather than shipping quietly.
+      - name: Conformal coverage gate
+        run: |
+          python - <<'PY'
+          import numpy as np
+          from app.core.conformal import ConformalCalibrator, empirical_coverage
+
+          rng = np.random.default_rng(20260812)
+          labels = rng.random((6000, 14)) < 0.12
+          probs = np.clip(rng.beta(2, 5, (6000, 14)) + labels * 0.42, 0, 1)
+
+          cal = ConformalCalibrator(alpha=0.10).fit(probs[:3000], labels[:3000])
+          cov = empirical_coverage(probs[3000:], labels[3000:], cal)
+          macro = cov["_macro_average"]
+          print(f"macro empirical coverage {macro:.4f} (target 0.90)")
+          assert macro >= 0.87, f"COVERAGE REGRESSION: {macro:.4f} < 0.87"
+          PY
+
+      # A grounding failure would let a language model surface a finding the
+      # vision model never made. That is the most dangerous defect this system
+      # can ship, so it gets its own gate.
+      - name: Report-grounding gate
+        run: |
+          python - <<'PY'
+          from app.core.pathologies import PATHOLOGIES
+          from app.services.reporting import verify_grounding
+
+          for p in PATHOLOGIES:
+              ok, _ = verify_grounding(f"The study shows {p.replace('_',' ')}.", set())
+              assert not ok, f"GROUNDING LEAK: {p} passed the filter"
+
+          ok, _ = verify_grounding("There is massive consolidation.", {"Consolidation"})
+          assert ok, "false positive: 'massive' must not match 'Mass'"
+          print("grounding filter: all 14 pathologies caught, no false positives")
+          PY
+
+  web:
+    name: Web — typecheck and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: https://sentinel-cxr-api.onrender.com
+
+  notebooks:
+    name: Notebooks — validate every code cell parses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Parse all cells
+        run: |
+          python - <<'PY'
+          import ast, glob, json, sys
+          failures = 0
+          for f in sorted(glob.glob("notebooks/*.ipynb")):
+              nb = json.load(open(f))
+              for i, c in enumerate(nb["cells"]):
+                  if c["cell_type"] != "code":
+                      continue
+                  try:
+                      ast.parse("".join(c["source"]))
+                  except SyntaxError as e:
+                      failures += 1
+                      print(f"{f} cell {i}: {e}")
+              print(f"ok  {f}")
+          sys.exit(1 if failures else 0)
+          PY
+
+  secrets:
+    name: No secrets committed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan for committed credentials
+        run: |
+          # This repository is public. A leaked key here is a real incident,
+          # not a style violation.
+          if git ls-files | grep -E '(^|/)\.env$'; then
+            echo "::error::.env is committed"; exit 1
+          fi
+          if git grep -nIE "AIza[0-9A-Za-z_-]{35}|sk-[A-Za-z0-9]{32,}|ghp_[A-Za-z0-9]{36}" \
+               -- ':!*.md' ':!.github/workflows/*' >/dev/null 2>&1; then
+            echo "::error::possible API key committed"; exit 1
+          fi
+          echo "no secrets detected"

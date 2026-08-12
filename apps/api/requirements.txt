@@ -1,0 +1,31 @@
+# Orchestration API — Render free tier (512 MB RAM, 0.1 CPU).
+#
+# There is deliberately NO torch / tensorflow here. PyTorch alone would exceed
+# the memory budget. Heavy inference runs on Hugging Face Spaces (16 GB); this
+# service does orchestration and applies the conformal head in NumPy.
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+email-validator==2.2.0
+
+# Persistence
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0          # Supabase Postgres
+aiosqlite==0.20.0        # local zero-setup default
+greenlet==3.1.1
+
+# Auth
+pyjwt==2.10.1
+passlib[bcrypt]==1.7.4
+bcrypt==4.2.1
+python-multipart==0.0.20
+
+# HTTP + imaging
+httpx==0.28.1
+pillow==11.1.0
+numpy==2.2.1
+
+# ONNX fast path. ~15 MB wheel; the int8 model is ~7 MB. Both fit the budget.
+onnxruntime==1.20.1

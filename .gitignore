@@ -1,0 +1,50 @@
+# Secrets — never commit. This repo is public.
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+service-account*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Node
+node_modules/
+.next/
+out/
+build/
+dist/
+.vercel/
+*.tsbuildinfo
+.turbo/
+
+# Models & data — too large for git, fetched at build/run time
+*.pth
+*.pt
+*.onnx
+*.h5
+*.ckpt
+data/
+weights/
+!weights/.gitkeep
+artifacts/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*

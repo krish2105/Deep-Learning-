@@ -1,0 +1,162 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SENTINEL-CXR design tokens
+
+   The thesis: radiographs are read on grayscale-calibrated monitors, so any
+   colour cast over the image is clinically wrong. That constraint becomes the
+   identity — the interface is monochrome, and colour exists only to encode
+   doubt.
+
+   `--instrument` is the single chroma axis. A prediction chip renders at full
+   saturation when the model is confident and drains toward neutral as
+   confidence falls, going fully achromatic at the conformal abstention
+   threshold. Certainty is legible across the whole screen without reading a
+   number. See apps/api/app/core/uncertainty.py::confidence_to_chroma — the API
+   computes the saturation so the two cannot disagree.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@theme {
+  --font-display: var(--font-bricolage), Georgia, serif;
+  --font-sans: var(--font-plex-sans), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  /* Fluid type — interpolates, never jumps at a breakpoint */
+  --text-step--1: clamp(0.78rem, 0.75rem + 0.15vw, 0.86rem);
+  --text-step-0: clamp(0.94rem, 0.9rem + 0.2vw, 1rem);
+  --text-step-1: clamp(1.13rem, 1.05rem + 0.35vw, 1.33rem);
+  --text-step-2: clamp(1.35rem, 1.22rem + 0.6vw, 1.78rem);
+  --text-step-3: clamp(1.62rem, 1.42rem + 0.95vw, 2.37rem);
+  --text-step-4: clamp(1.94rem, 1.63rem + 1.5vw, 3.16rem);
+  --text-hero: clamp(2.6rem, 1.4rem + 5.6vw, 7rem);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* ── Dark: the reading room. Primary theme — radiology is read in dim light ── */
+:root,
+:root[data-theme="dark"] {
+  --film-base: #0b0d0e;        /* near-black with a faint cool cast, not flat */
+  --film-fog: #16191b;
+  --film-panel: #1c2023;
+  --film-shoulder: #2a2f33;
+  --film-mid: #8a9299;
+  --film-highlight: #e8ecef;
+  --instrument: #2e9cb8;
+  --instrument-dim: #1f6f83;
+  --stat: #d64541;             /* critical triage only — clinically mandated */
+  --urgent: #d9903f;
+  --hatch: #4a5157;            /* abstention hatching */
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.28);
+}
+
+/* ── Light: the printed report. A designed theme, not an inversion ── */
+:root[data-theme="light"] {
+  --film-base: #f7f8f9;
+  --film-fog: #ffffff;
+  --film-panel: #ffffff;
+  --film-shoulder: #dfe3e6;
+  --film-mid: #5c666d;
+  --film-highlight: #11161a;
+  --instrument: #1b7d97;       /* darkened for AA contrast on white */
+  --instrument-dim: #4d9cb0;
+  --stat: #b8322e;
+  --urgent: #9a6414;
+  --hatch: #aab2b8;
+  --shadow-panel: 0 1px 2px rgb(16 24 32 / 0.06), 0 8px 24px rgb(16 24 32 / 0.07);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --film-base: #f7f8f9;
+    --film-fog: #ffffff;
+    --film-panel: #ffffff;
+    --film-shoulder: #dfe3e6;
+    --film-mid: #5c666d;
+    --film-highlight: #11161a;
+    --instrument: #1b7d97;
+    --instrument-dim: #4d9cb0;
+    --stat: #b8322e;
+    --urgent: #9a6414;
+    --hatch: #aab2b8;
+    --shadow-panel: 0 1px 2px rgb(16 24 32 / 0.06), 0 8px 24px rgb(16 24 32 / 0.07);
+  }
+}
+
+* {
+  border-color: var(--film-shoulder);
+}
+
+html {
+  background: var(--film-base);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--film-base);
+  color: var(--film-highlight);
+  font-family: var(--font-sans);
+  font-size: var(--text-step-0);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* The viewer stays film-dark in BOTH themes. You never read a radiograph on
+   white — an inset of night inside the day. */
+.viewer-surface {
+  background: #0b0d0e;
+  color: #e8ecef;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--instrument) 35%, transparent);
+  color: var(--film-highlight);
+}
+
+:focus-visible {
+  outline: 2px solid var(--instrument);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Abstention: achromatic plus diagonal hatch — the convention for marking a
+   film region non-diagnostic. Colour alone is never the only signal. */
+.hatched {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 3px,
+    var(--hatch) 3px,
+    var(--hatch) 4px
+  );
+}
+
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Scrollbars, so dense panels don't look broken */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--film-shoulder);
+  border-radius: 5px;
+  border: 2px solid var(--film-base);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--film-mid); }
+
+/* The single most important accessibility rule in the stylesheet. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

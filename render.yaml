@@ -1,0 +1,37 @@
+# Render Blueprint — deploys the orchestration API.
+# In Render: New > Blueprint > connect this repo. It reads this file.
+#
+# NOTE: the free plan spins down after 15 minutes idle (30-60s cold start) and
+# provides 512 MB / 0.1 CPU. That is why no deep-learning framework is installed
+# here; heavy inference runs on Hugging Face Spaces. See docs/DEPLOYMENT.md.
+services:
+  - type: web
+    name: sentinel-cxr-api
+    runtime: python
+    plan: free
+    region: oregon
+    rootDir: apps/api
+    buildCommand: pip install --no-cache-dir -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: SECRET_KEY
+        generateValue: true          # Render generates a strong secret
+      - key: DATABASE_URL
+        sync: false                  # paste your Supabase pooled URI
+      - key: INFERENCE_URL
+        sync: false                  # https://<user>-sentinel-cxr.hf.space
+      - key: ALLOWED_ORIGINS
+        sync: false                  # https://<your-app>.vercel.app
+      - key: GEMINI_API_KEY
+        sync: false                  # optional; template reports without it
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: CONFORMAL_ALPHA
+        value: "0.10"
+      - key: OOD_THRESHOLD
+        value: "0.045"
