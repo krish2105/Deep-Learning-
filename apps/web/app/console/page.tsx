@@ -147,7 +147,19 @@ function Workspace({
 
   useEffect(() => {
     refresh();
-    if (offline) return;
+    if (offline) {
+      // The fallback answers "the backend is down right now". Once it is back,
+      // leave it — otherwise a reviewer keeps seeing fixtures long after the
+      // API recovered, with no way to tell that it had.
+      api
+        .ready()
+        .then(() => {
+          offlineDemo.clear();
+          window.location.reload();
+        })
+        .catch(() => {});
+      return;
+    }
     api.ready().then(setReady).catch(() => setReady(null));
     // Wake a sleeping Space now, while the user is still choosing a file,
     // rather than after they click Analyse.

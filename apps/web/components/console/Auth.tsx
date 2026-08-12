@@ -162,7 +162,15 @@ export function AuthPanel({
             : "Already have an account? Sign in"}
         </button>
 
-        <p className="mt-10 text-xs text-[var(--film-mid)]">
+        <p className="mt-8 rounded-sm border px-3 py-2 text-[11px] leading-relaxed text-[var(--film-mid)]"
+           style={{ borderColor: "var(--film-shoulder)" }}>
+          The demo needs no account and is the fastest way in. Note that on
+          free-tier hosting the database is wiped whenever the backend restarts,
+          so registered accounts may not persist between visits — the demo
+          reissues itself automatically.
+        </p>
+
+        <p className="mt-4 text-xs text-[var(--film-mid)]">
           Research prototype for MAIB AI 114. Not a medical device. Do not upload
           identifiable patient data.
         </p>

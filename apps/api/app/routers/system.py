@@ -37,9 +37,24 @@ async def ready() -> dict:
     """
     client = get_inference_client()
     backends = await client.health()
+
+    # Render's free tier has an ephemeral filesystem: every deploy and every
+    # idle spin-down destroys the disk. With no DATABASE_URL the API falls back
+    # to SQLite on that disk, so accounts and saved studies do not survive.
+    # Reporting this is not optional -- a user whose login silently stops
+    # working has no way to tell that from a broken system.
+    ephemeral = settings.database_url.startswith("sqlite")
+
     return {
         "ready": True,
         "backends": backends,
+        "storage": "ephemeral" if ephemeral else "persistent",
+        "storage_note": (
+            "Accounts and studies are lost on redeploy or idle restart. Set "
+            "DATABASE_URL to a Postgres instance for persistence."
+            if ephemeral
+            else "Backed by Postgres."
+        ),
         "gemini": "enabled" if settings.gemini_enabled else "template-fallback",
         "calibration": settings.calibration_path.exists(),
         "triage_policy": "dqn" if settings.policy_path.exists() else "heuristic",

@@ -37,7 +37,9 @@ export const auth = {
   set: (t: string) => localStorage.setItem(TOKEN_KEY, t),
   clear: () => {
     localStorage.removeItem(TOKEN_KEY);
-    if (typeof window !== "undefined") sessionStorage.removeItem(OFFLINE_KEY);
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(OFFLINE_KEY);
+    }
   },
 };
 
@@ -57,7 +59,32 @@ export const offlineDemo = {
   },
 };
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+const DEMO_SESSION_KEY = "sentinel_demo_session";
+
+/**
+ * Whether the current session came from the demo button.
+ *
+ * Render's free tier has an ephemeral filesystem and no external database, so
+ * every deploy and every 15-minute idle spin-down destroys all accounts. A
+ * reviewer who steps away returns to a token whose user no longer exists and,
+ * without this, a bare "Could not validate credentials" error. Knowing the
+ * session was a demo lets us silently issue a fresh one instead.
+ */
+export const demoSession = {
+  get: () =>
+    typeof window !== "undefined" &&
+    localStorage.getItem(DEMO_SESSION_KEY) === "1",
+  set: () => localStorage.setItem(DEMO_SESSION_KEY, "1"),
+  clear: () => {
+    if (typeof window !== "undefined") localStorage.removeItem(DEMO_SESSION_KEY);
+  },
+};
+
+async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  _retried = false,
+): Promise<T> {
   const token = auth.get();
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -86,7 +113,28 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const payload = await res.json().catch(() => null);
 
   if (!res.ok) {
-    if (res.status === 401) auth.clear();
+    if (res.status === 401) {
+      // The server's database is wiped on every deploy and idle spin-down, so
+      // a valid token can outlive the user it refers to. If this session came
+      // from the demo button, silently mint a new sandbox and retry once
+      // rather than throwing the reviewer back to a credentials error they can
+      // do nothing about. Guarded by `_retried` so a genuinely broken auth
+      // path cannot loop.
+      auth.clear();
+      if (demoSession.get() && !_retried && path !== "/api/v1/auth/demo") {
+        try {
+          const fresh = await request<{ access_token: string }>(
+            "/api/v1/auth/demo",
+            { method: "POST" },
+            true,
+          );
+          auth.set(fresh.access_token);
+          return await request<T>(path, init, true);
+        } catch {
+          demoSession.clear();
+        }
+      }
+    }
 
     // A 404 on a route the client knows about means the deployed API predates
     // this build. Saying "Not Found" would send someone debugging the button
@@ -130,10 +178,15 @@ export const api = {
   },
 
   /** Issue a throwaway sandbox pre-loaded with demo studies. No signup. */
-  demo: () =>
-    request<{ access_token: string; user: User }>("/api/v1/auth/demo", {
-      method: "POST",
-    }),
+  demo: async () => {
+    const res = await request<{ access_token: string; user: User }>(
+      "/api/v1/auth/demo",
+      { method: "POST" },
+    );
+    // Remember this was a demo, so an expired sandbox can be reissued silently.
+    demoSession.set();
+    return res;
+  },
 
   me: () => request<User>("/api/v1/auth/me"),
 

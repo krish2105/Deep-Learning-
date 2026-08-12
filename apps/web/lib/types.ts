@@ -109,6 +109,8 @@ export interface ReadyState {
   calibration: boolean;
   triage_policy: string;
   mode: "full" | "reduced";
+  storage?: "ephemeral" | "persistent";
+  storage_note?: string;
 }
 
 export interface CalibrationState {
