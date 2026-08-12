@@ -9,7 +9,8 @@ import {
 } from "@/components/charts/ClinicalCharts";
 import { ChartFrame, INK, SERIES } from "@/components/charts/primitives";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { api, auth } from "@/lib/api";
+import { api, auth, offlineDemo } from "@/lib/api";
+import { DEMO_STUDIES } from "@/lib/demoFixtures";
 import type { CalibrationState, ReadyState, Study, User } from "@/lib/types";
 
 /**
@@ -29,9 +30,25 @@ export default function Dashboard() {
   const [cal, setCal] = useState<CalibrationState | null>(null);
   const [fairness, setFairness] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
     (async () => {
+      // Mirror the console: if the API was unreachable there, show the same
+      // captured outputs here rather than an authentication wall.
+      if (offlineDemo.get()) {
+        setUser({
+          id: "offline-demo",
+          email: "demo@sentinel-cxr.local",
+          full_name: "Demo Reviewer",
+          role: "demo",
+          created_at: new Date(0).toISOString(),
+        });
+        setStudies(DEMO_STUDIES);
+        setOffline(true);
+        setLoading(false);
+        return;
+      }
       if (!auth.get()) {
         setLoading(false);
         return;
@@ -123,7 +140,7 @@ export default function Dashboard() {
         <div className="ml-auto flex items-center gap-3">
           <span className="hidden text-xs text-[var(--film-mid)] sm:inline">
             {user.full_name || user.email}
-            {user.role === "demo" && " · demo sandbox"}
+            {user.role === "demo" && (offline ? " · offline demo" : " · demo sandbox")}
           </span>
           <ThemeToggle />
         </div>

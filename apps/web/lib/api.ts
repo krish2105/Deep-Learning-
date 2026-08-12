@@ -29,11 +29,32 @@ export class ApiError extends Error {
   }
 }
 
+const OFFLINE_KEY = "sentinel_offline_demo";
+
 export const auth = {
   get: () =>
     typeof window === "undefined" ? null : localStorage.getItem(TOKEN_KEY),
   set: (t: string) => localStorage.setItem(TOKEN_KEY, t),
-  clear: () => localStorage.removeItem(TOKEN_KEY),
+  clear: () => {
+    localStorage.removeItem(TOKEN_KEY);
+    if (typeof window !== "undefined") sessionStorage.removeItem(OFFLINE_KEY);
+  },
+};
+
+/**
+ * Offline-demo flag, shared across routes.
+ *
+ * sessionStorage rather than localStorage: the fallback is a response to the
+ * backend being unreachable *right now*, so it should not outlive the tab and
+ * leave someone staring at fixtures after the API has recovered.
+ */
+export const offlineDemo = {
+  get: () =>
+    typeof window !== "undefined" && sessionStorage.getItem(OFFLINE_KEY) === "1",
+  set: () => sessionStorage.setItem(OFFLINE_KEY, "1"),
+  clear: () => {
+    if (typeof window !== "undefined") sessionStorage.removeItem(OFFLINE_KEY);
+  },
 };
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {

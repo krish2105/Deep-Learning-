@@ -1,0 +1,17 @@
+{
+  "services": {
+    "sentinel-cxr-api": {
+      "root": "apps/api",
+      "entrypoint": "app.main:app"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": {
+        "type": "service",
+        "service": "sentinel-cxr-api"
+      }
+    }
+  ]
+}

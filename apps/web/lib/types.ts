@@ -50,6 +50,23 @@ export interface Study {
   conformal: ConformalOut | null;
   progression: ProgressionOut | null;
   gradcam: Record<string, string>;
+  /** Raw aleatoric/epistemic decomposition, when the full path produced one. */
+  uncertainty: {
+    n_samples?: number;
+    max_epistemic?: number;
+    note?: string;
+    per_label?: Record<
+      string,
+      {
+        mean: number;
+        std: number;
+        total: number;
+        aleatoric: number;
+        epistemic: number;
+        dominant: string;
+      }
+    >;
+  };
   triage_score: number;
   triage_priority: "STAT" | "URGENT" | "ROUTINE";
   triage_rationale: string;

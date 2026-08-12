@@ -2,13 +2,45 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AuthPanel } from "@/components/console/Auth";
+import { AuthPanel, OFFLINE_USER } from "@/components/console/Auth";
+import { DEMO_STUDIES } from "@/lib/demoFixtures";
 import { Panel, TABS, type Tab } from "@/components/console/Panels";
 import { Viewer } from "@/components/console/Viewer";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { ApiError, api, auth } from "@/lib/api";
+import { ApiError, api, auth, offlineDemo } from "@/lib/api";
 import type { ReadyState, Study, User, WorklistItem } from "@/lib/types";
 import { PRIORITY_COLOR, cn, formatWait } from "@/lib/utils";
+
+/** Derive a worklist from studies, matching the server's ordering rule. */
+function toWorklist(studies: Study[]): WorklistItem[] {
+  const now = Date.now();
+  return studies
+    .filter((s) => s.status === "complete")
+    .sort((a, b) => b.triage_score - a.triage_score)
+    .map((s) => {
+      const top = s.findings.reduce(
+        (best, f) => (f.probability > best.probability ? f : best),
+        s.findings[0],
+      );
+      return {
+        id: s.id,
+        patient_ref: s.patient_ref || "—",
+        triage_priority: s.triage_priority,
+        triage_score: s.triage_score,
+        triage_rationale: s.triage_rationale,
+        abstained: s.abstained,
+        is_ood: s.is_ood,
+        top_finding: top?.display_name ?? "—",
+        top_probability: top?.probability ?? 0,
+        waited_minutes: Math.max(
+          0,
+          (now - new Date(s.created_at).getTime()) / 60000,
+        ),
+        status: s.status,
+        created_at: s.created_at,
+      };
+    });
+}
 
 /**
  * The clinical console.
@@ -19,9 +51,18 @@ import { PRIORITY_COLOR, cn, formatWait } from "@/lib/utils";
  */
 export default function Console() {
   const [user, setUser] = useState<User | null>(null);
+  const [offline, setOffline] = useState(false);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    // Restore an offline session so a page refresh or a hop to /dashboard does
+    // not drop the reviewer back onto the sign-in screen.
+    if (offlineDemo.get()) {
+      setOffline(true);
+      setUser(OFFLINE_USER);
+      setChecking(false);
+      return;
+    }
     if (!auth.get()) {
       setChecking(false);
       return;
@@ -43,11 +84,41 @@ export default function Console() {
     );
   }
 
-  if (!user) return <AuthPanel onAuth={setUser} />;
-  return <Workspace user={user} onSignOut={() => { auth.clear(); setUser(null); }} />;
+  if (!user)
+    return (
+      <AuthPanel
+        onAuth={setUser}
+        onOfflineDemo={() => {
+          offlineDemo.set();
+          setOffline(true);
+          setUser(OFFLINE_USER);
+        }}
+      />
+    );
+
+  return (
+    <Workspace
+      user={user}
+      offline={offline}
+      onSignOut={() => {
+        auth.clear();
+        offlineDemo.clear();
+        setOffline(false);
+        setUser(null);
+      }}
+    />
+  );
 }
 
-function Workspace({ user, onSignOut }: { user: User; onSignOut: () => void }) {
+function Workspace({
+  user,
+  offline,
+  onSignOut,
+}: {
+  user: User;
+  offline: boolean;
+  onSignOut: () => void;
+}) {
   const [worklist, setWorklist] = useState<WorklistItem[]>([]);
   const [studies, setStudies] = useState<Study[]>([]);
   const [study, setStudy] = useState<Study | null>(null);
@@ -59,6 +130,12 @@ function Workspace({ user, onSignOut }: { user: User; onSignOut: () => void }) {
   const fileInput = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
+    if (offline) {
+      setStudies(DEMO_STUDIES);
+      setWorklist(toWorklist(DEMO_STUDIES));
+      setStudy((cur) => cur ?? DEMO_STUDIES[0]);
+      return;
+    }
     try {
       const [w, s] = await Promise.all([api.worklist(), api.studies()]);
       setWorklist(w);
@@ -66,15 +143,16 @@ function Workspace({ user, onSignOut }: { user: User; onSignOut: () => void }) {
     } catch {
       /* worklist failure must not blank the screen */
     }
-  }, []);
+  }, [offline]);
 
   useEffect(() => {
     refresh();
+    if (offline) return;
     api.ready().then(setReady).catch(() => setReady(null));
     // Wake a sleeping Space now, while the user is still choosing a file,
     // rather than after they click Analyse.
     api.wake();
-  }, [refresh]);
+  }, [refresh, offline]);
 
   async function upload(file: File) {
     setBusy(true);
@@ -93,6 +171,11 @@ function Workspace({ user, onSignOut }: { user: User; onSignOut: () => void }) {
   }
 
   async function open(id: string) {
+    if (offline) {
+      setStudy(DEMO_STUDIES.find((s) => s.id === id) ?? null);
+      setTab("Overview");
+      return;
+    }
     try {
       setStudy(await api.study(id));
       setTab("Overview");
@@ -111,7 +194,17 @@ function Workspace({ user, onSignOut }: { user: User; onSignOut: () => void }) {
           SENTINEL<span style={{ color: "var(--instrument)" }}>·</span>CXR
         </Link>
 
-        {ready && (
+        {offline && (
+          <span
+            className="tabular rounded-full border px-2 py-0.5 text-[10px] tracking-widest"
+            style={{ borderColor: "var(--urgent)", color: "var(--urgent)" }}
+            title="The API was unreachable, so this console is showing outputs captured earlier from the real pipeline. Uploading is disabled."
+          >
+            OFFLINE DEMO
+          </span>
+        )}
+
+        {ready && !offline && (
           <span
             className="tabular rounded-full border px-2 py-0.5 text-[10px] tracking-widest"
             style={{
@@ -191,12 +284,29 @@ function Workspace({ user, onSignOut }: { user: User; onSignOut: () => void }) {
             />
             <button
               onClick={() => fileInput.current?.click()}
-              disabled={busy}
-              className="mt-2.5 w-full rounded-sm px-3 py-2 text-xs font-medium disabled:opacity-60"
+              disabled={busy || offline}
+              className="mt-2.5 w-full rounded-sm px-3 py-2 text-xs font-medium disabled:opacity-50"
               style={{ background: "var(--instrument)", color: "#fff" }}
+              title={
+                offline
+                  ? "Uploading needs the inference API, which is not reachable right now."
+                  : undefined
+              }
             >
-              {busy ? "Analysing…" : "Upload radiograph"}
+              {busy ? "Analysing…" : offline ? "Upload unavailable offline" : "Upload radiograph"}
             </button>
+
+            {offline && (
+              <p
+                className="mt-2 rounded-sm border px-2 py-1.5 text-[10px] leading-relaxed"
+                style={{ borderColor: "var(--urgent)", color: "var(--film-mid)" }}
+              >
+                The API is unreachable, so these five studies are outputs
+                captured earlier from the real pipeline — the thresholds,
+                abstention and Grad-CAM shown were all genuinely computed.
+                Analysing a new image needs the live backend.
+              </p>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto">

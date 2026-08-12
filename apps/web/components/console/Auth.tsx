@@ -4,7 +4,22 @@ import { useState } from "react";
 import { api, auth, ApiError } from "@/lib/api";
 import type { User } from "@/lib/types";
 
-export function AuthPanel({ onAuth }: { onAuth: (u: User) => void }) {
+export const OFFLINE_USER: User = {
+  id: "offline-demo",
+  email: "demo@sentinel-cxr.local",
+  full_name: "Demo Reviewer",
+  role: "demo",
+  created_at: new Date(0).toISOString(),
+};
+
+export function AuthPanel({
+  onAuth,
+  onOfflineDemo,
+}: {
+  onAuth: (u: User) => void;
+  /** Entered when the API cannot serve a sandbox — see demoFixtures.ts. */
+  onOfflineDemo: () => void;
+}) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -114,12 +129,12 @@ export function AuthPanel({ onAuth }: { onAuth: (u: User) => void }) {
               const res = await api.demo();
               auth.set(res.access_token);
               onAuth(res.user);
-            } catch (err) {
-              setError(
-                err instanceof ApiError
-                  ? err.message
-                  : "Could not start the demo. Is the API reachable?",
-              );
+            } catch {
+              // The backend may be asleep, older than this build, or blocked by
+              // CORS. A reviewer should still see a working console, so fall
+              // back to captured real outputs — labelled as such, never passed
+              // off as live inference.
+              onOfflineDemo();
             } finally {
               setDemoBusy(false);
             }
