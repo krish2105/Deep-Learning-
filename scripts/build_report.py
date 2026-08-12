@@ -177,7 +177,14 @@ para("Term 3, September 2025 intake", size=10, colour=MUTED,
 para("Submitted 12 August 2026", size=10, colour=MUTED,
      align=WD_ALIGN_PARAGRAPH.CENTER, space_after=18)
 
-para("Repository: github.com/krish2105/Deep-Learning-", size=9,
+para("Live system:  sentinel-cxr.vercel.app", size=10, bold=True,
+     colour=INSTRUMENT, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
+para("Open the console and click \u201cExplore the demo\u201d \u2014 no sign-up required",
+     size=8.5, italic=True, colour=MUTED,
+     align=WD_ALIGN_PARAGRAPH.CENTER, space_after=6)
+para("Source code:  github.com/krish2105/Deep-Learning-", size=9,
+     colour=MUTED, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
+para("API:  sentinel-cxr-api.onrender.com/docs", size=9,
      colour=MUTED, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
 para("This system is a research prototype. It is not a medical device and must "
      "not be used for clinical decisions.", size=9, italic=True, colour=MUTED,
@@ -233,8 +240,48 @@ para("conformal prediction; selective classification; out-of-distribution "
 page_break()
 
 # ═════════════════════════════════════════════════════════════════════════
+doc.add_heading("Accessing the system", 1)
+para(
+    "The system is deployed and can be examined without installing anything. "
+    "The fastest route is the demo, which requires no account."
+)
+
+table(
+    ["What", "Where", "Notes"],
+    [
+        ["Live application", "sentinel-cxr.vercel.app",
+         "Console, dashboard and landing page"],
+        ["Demo access", "Console \u2192 \u201cExplore the demo\u201d",
+         "No sign-up. Five studies covering triage, abstention, "
+         "out-of-distribution rejection and a two-visit progression pair"],
+        ["Analytics dashboard", "sentinel-cxr.vercel.app/dashboard",
+         "Measured coverage, fairness audit, model health, audit record"],
+        ["Source code", "github.com/krish2105/Deep-Learning-",
+         "Public. Continuous integration passing, 83 automated tests"],
+        ["API documentation", "sentinel-cxr-api.onrender.com/docs",
+         "Interactive OpenAPI surface"],
+    ],
+    widths=[3.6, 5.4, 6.5],
+    caption="Table 1. How to reach each part of the system.",
+)
+
+para(
+    "Two notes on the free-tier hosting. The API sleeps after fifteen minutes "
+    "of inactivity, so the first request after a quiet period can take up to a "
+    "minute; subsequent requests are immediate. And because the free tier has "
+    "no persistent disk, registered accounts do not survive a restart \u2014 the "
+    "demo path reissues itself automatically and is therefore the reliable way "
+    "in. Both limitations are reported by the application itself rather than "
+    "hidden.",
+    size=10,
+)
+
+page_break()
+
+# ═════════════════════════════════════════════════════════════════════════
 doc.add_heading("Contents", 1)
 for n, t in [
+    ("", "Accessing the system"),
     ("1", "Introduction and motivation"),
     ("2", "Background and related work"),
     ("3", "Data"),

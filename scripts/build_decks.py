@@ -196,7 +196,10 @@ def title_slide(prs, kind: str, subtitle: str):
     text(s, 0.7, 5.85, 11.9, 0.4,
          "Prof Anshul Gupta · S P Jain School of Global Management, Dubai",
          size=11, colour=MID)
-    text(s, 0.7, 6.3, 11.9, 0.4, kind, size=11, colour=INSTRUMENT, font=MONO)
+    text(s, 0.7, 6.3, 6.5, 0.4, kind, size=11, colour=INSTRUMENT, font=MONO)
+    text(s, 7.4, 6.15, 5.2, 0.7,
+         "LIVE  sentinel-cxr.vercel.app\nCODE  github.com/krish2105/Deep-Learning-",
+         size=11, colour=HIGHLIGHT, font=MONO, spacing=1.2, align=PP_ALIGN.RIGHT)
     footer(s)
     return s
 
@@ -349,11 +352,14 @@ def build_week6():
 
     # 10 — close
     s = blank(prs); eyebrow(s, "thank you", 10, T)
-    title(s, "Questions.", y=2.6, size=54)
-    rule(s, 0.7, 3.9, 3.0, INSTRUMENT, 2.0)
-    text(s, 0.7, 4.2, 11.9, 0.9,
-         "github.com/krish2105/Deep-Learning-", size=15, colour=MID, font=MONO)
-    text(s, 0.7, 5.0, 11.9, 0.5, TEAM, size=12, colour=MID)
+    title(s, "Questions.", y=2.4, size=54)
+    rule(s, 0.7, 3.7, 3.0, INSTRUMENT, 2.0)
+    panel(s, 0.7, 4.0, 11.9, 1.05)
+    text(s, 1.0, 4.18, 11.3, 0.75,
+         "TRY IT   sentinel-cxr.vercel.app  \u2014  console \u2192 \u201cExplore the demo\u201d, "
+         "no sign-up\nCODE     github.com/krish2105/Deep-Learning-",
+         size=13, colour=HIGHLIGHT, font=MONO, spacing=1.25)
+    text(s, 0.7, 5.3, 11.9, 0.5, TEAM, size=12, colour=MID)
     footer(s)
 
     path = OUT / "SENTINEL-CXR_Week6_Progress.pptx"
@@ -642,10 +648,13 @@ def build_final():
          "A clinical system earns trust not by being confident, but by being able "
          "to state — precisely, and verifiably — the limits of what it knows.",
          size=17, colour=MID, spacing=1.2)
-    rule(s, 0.7, 5.0, 3.0, INSTRUMENT, 2.0)
-    text(s, 0.7, 5.3, 11.9, 0.4, "github.com/krish2105/Deep-Learning-",
-         size=14, colour=MID, font=MONO)
-    text(s, 0.7, 5.85, 11.9, 0.4, TEAM, size=12, colour=MID)
+    rule(s, 0.7, 4.95, 3.0, INSTRUMENT, 2.0)
+    panel(s, 0.7, 5.2, 11.9, 1.0)
+    text(s, 1.0, 5.36, 11.3, 0.7,
+         "TRY IT   sentinel-cxr.vercel.app  \u2014  console \u2192 \u201cExplore the demo\u201d, "
+         "no sign-up\nCODE     github.com/krish2105/Deep-Learning-",
+         size=13, colour=HIGHLIGHT, font=MONO, spacing=1.25)
+    text(s, 0.7, 6.35, 11.9, 0.4, TEAM, size=11, colour=MID)
     footer(s)
 
     path = OUT / "SENTINEL-CXR_Final.pptx"
