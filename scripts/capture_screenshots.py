@@ -69,6 +69,11 @@ def main() -> None:
             page.wait_for_timeout(25_000)
             shot("05_console_worklist", "Clinical console — triage-ordered worklist and viewer")
 
+            # The tab row only renders once a study is open, so select the top
+            # of the worklist first. Without this every tab click timed out.
+            page.click("aside button:has-text('STAT'), aside button:has-text('URGENT')", timeout=15_000)
+            page.wait_for_timeout(3500)
+
             for tab, name, cap in [
                 ("Findings", "06_console_findings", "Findings with conformal thresholds marked in place"),
                 ("Explainability", "07_console_explainability", "Class activation maps over the radiograph"),

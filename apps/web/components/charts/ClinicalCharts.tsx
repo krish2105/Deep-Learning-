@@ -414,7 +414,9 @@ export function CoveragePlot({
       legend={[
         { label: "Meets target", color: SERIES[0] },
         { label: "Below target", color: "var(--stat)" },
-        { label: `Nominal ${(target * 100).toFixed(0)}%`, color: SERIES[3] },
+        // Neutral, not red: the reference line is the benchmark, and reusing
+        // the failure hue for it made the legend say red means two things.
+        { label: `Nominal ${(target * 100).toFixed(0)}% (dashed)`, color: "var(--film-mid)" },
       ]}
     >
       <div className="overflow-x-auto">
@@ -435,7 +437,7 @@ export function CoveragePlot({
 
           {/* the target is the subject of this chart, so it gets the ink */}
           <line x1={sx(target)} x2={sx(target)} y1={0} y2={H - 20}
-                stroke={SERIES[3]} strokeWidth={2} strokeDasharray="4 3" />
+                stroke={INK.secondary} strokeWidth={2} strokeDasharray="5 4" />
 
           {rows.map((c, i) => {
             const y = i * rowH + 10;
@@ -577,12 +579,13 @@ export function FairnessBars({
       legend={[
         { label: "TPR gap", color: SERIES[0] },
         { label: "FPR gap", color: SERIES[4] },
-        { label: `Breaches tolerance`, color: SERIES[3] },
+        { label: "Breaches tolerance", color: "var(--stat)" },
+        { label: `Tolerance ${tolerance} (dashed)`, color: "var(--film-mid)" },
       ]}
     >
       <svg width="100%" viewBox={`0 0 ${width} ${height + 16}`} role="img"
            aria-label="Equalised odds gaps per stratum against the tolerance threshold">
-        <line x1={sx(tolerance)} x2={sx(tolerance)} y1={0} y2={height} stroke={SERIES[3]} strokeWidth={2} strokeDasharray="4 3" />
+        <line x1={sx(tolerance)} x2={sx(tolerance)} y1={0} y2={height} stroke={INK.secondary} strokeWidth={2} strokeDasharray="5 4" />
         <text x={sx(tolerance)} y={height + 12} fontSize={9} textAnchor="middle" fill={INK.secondary} className="tabular">
           τ {tolerance}
         </text>
@@ -608,7 +611,7 @@ export function FairnessBars({
                       width={Math.max(sx(row.v) - padL, 2)}
                       height={barH}
                       rx={4}
-                      fill={breach ? SERIES[3] : row.c}
+                      fill={breach ? "var(--stat)" : row.c}
                     >
                       <title>{`${g.stratum} ${row.label} gap ${row.v.toFixed(3)}${breach ? " — breaches tolerance" : ""}`}</title>
                     </rect>
