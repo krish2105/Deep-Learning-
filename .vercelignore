@@ -1,0 +1,15 @@
+# Vercel builds ONLY the Next.js frontend from this monorepo.
+#
+# Without this, Vercel's framework detection finds apps/api/requirements.txt at
+# the repository root, builds the Python API instead of the frontend, and ships
+# a deployment with no static output — every route then returns
+# FUNCTION_INVOCATION_FAILED. That happened on a git-triggered auto-deploy and
+# took the live site down while manual deploys from apps/web kept working,
+# which made it invisible until a real browser hit it.
+apps/api
+services
+notebooks
+deliverables
+scripts
+docs
+*.zip

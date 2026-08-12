@@ -1,17 +1,7 @@
 {
-  "services": {
-    "sentinel-cxr-api": {
-      "root": "apps/api",
-      "entrypoint": "app.main:app"
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": {
-        "type": "service",
-        "service": "sentinel-cxr-api"
-      }
-    }
-  ]
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "cd apps/web && npm install --no-audit --no-fund && npm run build",
+  "outputDirectory": "apps/web/.next",
+  "installCommand": "echo 'install handled by buildCommand'"
 }
