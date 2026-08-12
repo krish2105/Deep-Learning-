@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   CoveragePlot,
@@ -41,6 +42,21 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [tab, setTab] = useState<Tab>("Overview");
+  // Cross-filter state. Clicking any chart narrows every other chart to that
+  // slice, so the dashboard answers follow-up questions instead of only the
+  // first one.
+  const [fPriority, setFPriority] = useState<string | null>(null);
+  const [fDecision, setFDecision] = useState<string | null>(null);
+  const [fPathology, setFPathology] = useState<string | null>(null);
+  const router = useRouter();
+
+  const openStudy = (id: string) => router.push(`/console?study=${id}`);
+  const clearFilters = () => {
+    setFPriority(null);
+    setFDecision(null);
+    setFPathology(null);
+  };
+  const activeFilters = [fPriority, fDecision, fPathology].filter(Boolean).length;
 
   useEffect(() => {
     (async () => {
@@ -82,22 +98,50 @@ export default function Dashboard() {
     })();
   }, []);
 
+  // Everything below reads `view`, never `studies`, so a filter applied on one
+  // chart propagates everywhere without each chart knowing about the others.
+  const view = useMemo(() => {
+    return studies.filter((s) => {
+      if (fPriority && s.triage_priority !== fPriority) return false;
+      if (fDecision) {
+        const d = s.is_ood ? "Rejected" : s.abstained ? "Abstained" : "Answered";
+        if (d !== fDecision) return false;
+      }
+      if (fPathology) {
+        const hit = s.findings.some((f) => f.included && f.display_name === fPathology);
+        if (!hit) return false;
+      }
+      return true;
+    });
+  }, [studies, fPriority, fDecision, fPathology]);
+
+  // Poll for new studies so the dashboard stays current without a reload.
+  // 20s rather than a socket: the free tier spins down, and a dropped socket
+  // that silently stops updating is worse than a visible poll.
+  useEffect(() => {
+    if (offline || !user) return;
+    const id = setInterval(() => {
+      api.studies().then(setStudies).catch(() => {});
+    }, 20000);
+    return () => clearInterval(id);
+  }, [offline, user]);
+
   const stats = useMemo(() => {
-    const done = studies.filter((s) => s.status === "complete");
+    const done = view.filter((s) => s.status === "complete");
     const counts = { STAT: 0, URGENT: 0, ROUTINE: 0 };
     done.forEach((s) => (counts[s.triage_priority] = (counts[s.triage_priority] ?? 0) + 1));
     const lat = done.map((s) => s.latency_ms).filter(Boolean).sort((a, b) => a - b);
     return {
-      total: studies.length,
+      total: view.length,
       counts,
-      rejected: studies.filter((s) => s.is_ood).length,
+      rejected: view.filter((s) => s.is_ood).length,
       abstained: done.filter((s) => s.abstained).length,
       median: lat.length ? lat[Math.floor(lat.length / 2)] : 0,
       p95: lat.length ? lat[Math.min(lat.length - 1, Math.floor(lat.length * 0.95))] : 0,
       abstentionRate: done.length ? done.filter((s) => s.abstained).length / done.length : 0,
       stat: counts.STAT,
     };
-  }, [studies]);
+  }, [view]);
 
   if (loading)
     return (
@@ -183,6 +227,45 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {activeFilters > 0 && (
+        <div
+          className="border-b px-5 py-2"
+          style={{ borderColor: "var(--film-shoulder)", background: "var(--film-panel)" }}
+        >
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2">
+            <span className="text-[11px]" style={{ color: INK.secondary }}>
+              Filtered to
+            </span>
+            {[
+              [fPriority, () => setFPriority(null)],
+              [fDecision, () => setFDecision(null)],
+              [fPathology, () => setFPathology(null)],
+            ]
+              .filter(([v]) => v)
+              .map(([v, clear]) => (
+                <button
+                  key={String(v)}
+                  onClick={clear as () => void}
+                  className="rounded-full px-2.5 py-1 text-[11px]"
+                  style={{ background: "var(--instrument)", color: "#fff" }}
+                >
+                  {String(v)} ×
+                </button>
+              ))}
+            <span className="tabular text-[11px]" style={{ color: INK.secondary }}>
+              {view.length} of {studies.length} studies
+            </span>
+            <button
+              onClick={clearFilters}
+              className="ml-auto text-[11px] underline decoration-dotted underline-offset-4"
+              style={{ color: INK.secondary }}
+            >
+              Clear all
+            </button>
+          </div>
+        </div>
+      )}
+
       <main className="mx-auto max-w-6xl space-y-4 p-5">
         {tab === "Overview" && (
           <>
@@ -220,15 +303,27 @@ export default function Dashboard() {
 
             <section className="grid gap-4 lg:grid-cols-3">
               <div className="lg:col-span-2">
-                <ThroughputChart studies={studies} />
+                <ThroughputChart studies={view} />
               </div>
-              <TriageDonut counts={stats.counts} />
-              <DecisionSplit studies={studies} />
+              <TriageDonut
+                counts={stats.counts}
+                selected={fPriority}
+                onSelect={setFPriority}
+              />
+              <DecisionSplit
+                studies={view}
+                selected={fDecision}
+                onSelect={setFDecision}
+              />
               <div className="lg:col-span-2">
-                <PathologyProfile studies={studies} />
+                <PathologyProfile
+                  studies={view}
+                  selected={fPathology}
+                  onSelect={setFPathology}
+                />
               </div>
               <div className="lg:col-span-3">
-                <ActivityFeed studies={studies} />
+                <ActivityFeed studies={view} onOpen={openStudy} />
               </div>
             </section>
           </>
@@ -293,7 +388,7 @@ export default function Dashboard() {
                 }
                 target={cal?.coverage_target ?? 0.9}
               />
-              <PathologyProfile studies={studies} />
+              <PathologyProfile studies={view} />
             </section>
           </>
         )}
@@ -339,7 +434,7 @@ export default function Dashboard() {
 
         {tab === "Audit" && (
           <section className="space-y-4">
-            <ActivityFeed studies={studies} />
+            <ActivityFeed studies={view} onOpen={openStudy} />
             <ChartFrame title="Every study" subtitle="Full decision record for this session">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-[11px]">
@@ -351,7 +446,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {studies.map((s) => (
+                    {view.map((s) => (
                       <tr key={s.id} className="border-t" style={{ borderColor: "var(--film-shoulder)" }}>
                         <td className="tabular py-1.5 pr-4">{s.patient_ref || "—"}</td>
                         <td className="tabular py-1.5 pr-4">{s.follow_up_index + 1}</td>
@@ -363,7 +458,7 @@ export default function Dashboard() {
                         <td className="tabular py-1.5 pr-4">{s.latency_ms}ms</td>
                       </tr>
                     ))}
-                    {!studies.length && (
+                    {!view.length && (
                       <tr>
                         <td colSpan={6} className="py-3" style={{ color: INK.secondary }}>
                           No studies in this session.

@@ -219,6 +219,70 @@ export const api = {
     request<CalibrationState>("/api/v1/studies/system/calibration"),
   fairness: () => request<Record<string, unknown>>("/api/v1/fairness"),
 
+  // ── intelligence ──────────────────────────────────────────────────
+  /** Filter the worklist from a plain-English request. */
+  nlQuery: (q: string) =>
+    request<{
+      query: string;
+      interpretation: string;
+      n_total: number;
+      n_matched: number;
+      study_ids: string[];
+    }>(`/api/v1/intelligence/query?q=${encodeURIComponent(q)}`),
+
+  similar: (studyId: string) =>
+    request<{
+      study_id: string;
+      space: string;
+      note: string;
+      matches: {
+        study_id: string;
+        similarity: number;
+        patient_ref: string;
+        triage_priority: string;
+        thumbnail: string;
+        top_finding: string;
+      }[];
+    }>(`/api/v1/intelligence/similar/${studyId}`),
+
+  timeline: (patientRef: string) =>
+    request<{
+      patient_ref: string;
+      available: boolean;
+      n_visits?: number;
+      note?: string;
+      trajectory?: {
+        visit: number;
+        study_id: string;
+        triage: string;
+        abstained: boolean;
+        top_finding: string;
+        top_probability: number;
+      }[];
+      net_change?: Record<string, number>;
+      span_note?: string;
+      narrative?: string;
+      narrative_source?: string;
+    }>(`/api/v1/intelligence/timeline/${encodeURIComponent(patientRef)}`),
+
+  disagreement: (studyId: string) =>
+    request<{
+      study_id: string;
+      available: boolean;
+      n_conflicts: number;
+      threshold: number;
+      note: string;
+      conflicts: {
+        pathology: string;
+        kind: string;
+        gap: number;
+        primary?: number;
+        secondary?: number;
+        range?: number;
+        std?: number;
+      }[];
+    }>(`/api/v1/intelligence/disagreement/${studyId}`),
+
   /** Nudge a sleeping Space so it warms while the user picks a file. */
   wake: () =>
     request<{ woken: boolean }>("/api/v1/wake", { method: "POST" }).catch(

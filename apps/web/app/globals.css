@@ -26,11 +26,13 @@
   --text-step-0: clamp(0.94rem, 0.9rem + 0.2vw, 1rem);
   --text-step-1: clamp(1.13rem, 1.05rem + 0.35vw, 1.33rem);
   --text-step-2: clamp(1.35rem, 1.22rem + 0.6vw, 1.78rem);
-  --text-step-3: clamp(1.7rem, 1.44rem + 1.1vw, 2.6rem);
-  --text-step-4: clamp(2.1rem, 1.68rem + 1.9vw, 3.9rem);
-  /* The hero is the one place the display face is allowed to dominate, so it
-     scales harder than the rest of the ramp and tracks tighter. */
-  --text-hero: clamp(3.1rem, 1.5rem + 8.2vw, 10rem);
+  --text-step-3: clamp(1.45rem, 1.3rem + 0.6vw, 1.85rem);
+  --text-step-4: clamp(1.7rem, 1.5rem + 0.85vw, 2.35rem);
+  /* Capped at 4rem. An earlier 10rem cap filled the viewport and pushed the
+     subhead, buttons and stat row below the fold — the headline was competing
+     with the content instead of introducing it. Display type earns attention
+     by being the largest thing on screen, not by being enormous. */
+  --text-hero: clamp(2.1rem, 1.35rem + 2.9vw, 4rem);
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);

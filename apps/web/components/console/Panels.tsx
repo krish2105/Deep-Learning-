@@ -9,6 +9,11 @@ import {
   ProgressionChart,
   UncertaintyStack,
 } from "@/components/charts/ClinicalCharts";
+import {
+  DisagreementPanel,
+  SimilarPanel,
+  TimelinePanel,
+} from "@/components/console/AIPanels";
 import { PrintableReport } from "@/components/console/PrintableReport";
 import { api } from "@/lib/api";
 import type { CalibrationState, Study } from "@/lib/types";
@@ -20,6 +25,9 @@ export const TABS = [
   "Explainability",
   "Progression",
   "Uncertainty",
+  "Similar",
+  "Timeline",
+  "Disagreement",
   "Fairness",
   "Report",
 ] as const;
@@ -29,11 +37,14 @@ export function Panel({
   tab,
   study,
   siblings = [],
+  onOpen = () => {},
 }: {
   tab: Tab;
   study: Study;
   /** Other studies for the same patient, so progression can be plotted. */
   siblings?: Study[];
+  /** Jump to another study — similar cases and timeline entries are links. */
+  onOpen?: (id: string) => void;
 }) {
   switch (tab) {
     case "Overview":
@@ -46,6 +57,12 @@ export function Panel({
       return <Progression study={study} siblings={siblings} />;
     case "Uncertainty":
       return <Uncertainty study={study} />;
+    case "Similar":
+      return <SimilarPanel study={study} onOpen={onOpen} />;
+    case "Timeline":
+      return <TimelinePanel study={study} onOpen={onOpen} />;
+    case "Disagreement":
+      return <DisagreementPanel study={study} />;
     case "Fairness":
       return <Fairness />;
     case "Report":
@@ -185,9 +202,9 @@ function Explainability({ study }: { study: Study }) {
         <Empty
           title="No activation maps"
           body={
-            study.mode === "reduced"
-              ? "Grad-CAM runs only on the full inference path. The Space was cold, so this study was served by the ONNX fast path."
-              : "No finding scored high enough to warrant a heat map."
+            "No finding scored high enough to warrant a map, or the activation " +
+            "was too flat to localise. A flat map normalised into a heat map " +
+            "would show confident-looking evidence that is not there."
           }
         />
       ) : (
@@ -224,8 +241,11 @@ function Explainability({ study }: { study: Study }) {
 
       <p className="rounded-sm border px-3 py-2 text-xs text-[var(--film-mid)]"
          style={{ borderColor: "var(--film-shoulder)" }}>
-        Grad-CAM shows where activation correlates with the score. It is not a
-        causal explanation, and a plausible-looking heat map is not evidence of
+        {study.mode === "reduced"
+          ? "Class activation mapping — the classifier's weights applied across the final feature maps. It needs no backward pass, which is what makes explanation possible on the fast path."
+          : "Grad-CAM, computed from gradients on the full inference path."}{" "}
+        Either way it shows where activation correlates with the score. It is
+        not a causal explanation, and a plausible-looking map is not evidence of
         correct reasoning.
       </p>
     </div>

@@ -72,7 +72,15 @@ export function ThroughputChart({ studies }: { studies: Study[] }) {
    are not. A ranked bar list is the honest form for "how often does each
    label fire", and it stays readable at 14 categories.
    ─────────────────────────────────────────────────────────────────────── */
-export function PathologyProfile({ studies }: { studies: Study[] }) {
+export function PathologyProfile({
+  studies,
+  onSelect,
+  selected,
+}: {
+  studies: Study[];
+  onSelect?: (pathology: string | null) => void;
+  selected?: string | null;
+}) {
   const rows = useMemo(() => {
     const acc = new Map<string, { n: number; sum: number }>();
     studies
@@ -100,22 +108,53 @@ export function PathologyProfile({ studies }: { studies: Study[] }) {
   return (
     <ChartFrame
       title="Detection profile"
-      subtitle="How often each pathology enters the prediction set"
+      subtitle="How often each pathology enters the prediction set. Click a row to filter the dashboard."
     >
-      <svg width="100%" viewBox={`0 0 ${W} ${rows.length * rowH + 6}`} role="img"
-           aria-label="Number of studies in which each pathology entered the prediction set">
+      <svg
+        width="100%"
+        viewBox={`0 0 ${W} ${rows.length * rowH + 6}`}
+        role="img"
+        aria-label="Number of studies in which each pathology entered the prediction set"
+      >
         {rows.map((r, i) => {
           const y = i * rowH;
           const w = (r.hits / max) * (W - padL - 26);
+          const isSel = selected === r.name;
           return (
-            <g key={r.name}>
-              <text x={padL - 8} y={y + rowH / 2 + 3} fontSize={9.5} textAnchor="end" fill={INK.secondary}>
+            <g
+              key={r.name}
+              style={{ cursor: onSelect ? "pointer" : "default" }}
+              onClick={() => onSelect?.(isSel ? null : r.name)}
+            >
+              {/* hit target spans the row, not just the bar */}
+              <rect x={0} y={y} width={W} height={rowH} fill="transparent" />
+              <text
+                x={padL - 8}
+                y={y + rowH / 2 + 3}
+                fontSize={9.5}
+                textAnchor="end"
+                fill={isSel ? INK.primary : INK.secondary}
+              >
                 {r.name}
               </text>
-              <rect x={padL} y={y + 5} width={Math.max(w, 2)} height={rowH - 10} rx={4} fill={SERIES[0]}>
-                <title>{`${r.name}: in ${r.hits} prediction sets`}</title>
+              <rect
+                x={padL}
+                y={y + 5}
+                width={Math.max(w, 2)}
+                height={rowH - 10}
+                rx={4}
+                fill={SERIES[0]}
+                opacity={selected && !isSel ? 0.3 : 1}
+              >
+                <title>{`${r.name}: in ${r.hits} prediction sets — click to filter`}</title>
               </rect>
-              <text x={padL + w + 6} y={y + rowH / 2 + 3} fontSize={9} fill={INK.secondary} className="tabular">
+              <text
+                x={padL + w + 6}
+                y={y + rowH / 2 + 3}
+                fontSize={9}
+                fill={INK.secondary}
+                className="tabular"
+              >
                 {r.hits}
               </text>
             </g>
@@ -127,7 +166,13 @@ export function PathologyProfile({ studies }: { studies: Study[] }) {
 }
 
 /* ── Recent activity ─────────────────────────────────────────────────── */
-export function ActivityFeed({ studies }: { studies: Study[] }) {
+export function ActivityFeed({
+  studies,
+  onOpen,
+}: {
+  studies: Study[];
+  onOpen?: (id: string) => void;
+}) {
   const items = useMemo(
     () =>
       [...studies]
@@ -140,7 +185,7 @@ export function ActivityFeed({ studies }: { studies: Study[] }) {
     return <ChartEmpty title="No activity" body="Analysed studies appear here as they complete." />;
 
   return (
-    <ChartFrame title="Recent activity" subtitle="Newest first, with the decision taken">
+    <ChartFrame title="Recent activity" subtitle="Newest first. Click any study to open it in the console.">
       <ol className="space-y-2">
         {items.map((s) => {
           const label = s.is_ood
@@ -154,7 +199,12 @@ export function ActivityFeed({ studies }: { studies: Study[] }) {
               ? "var(--urgent)"
               : SERIES[0];
           return (
-            <li key={s.id} className="flex items-center gap-2.5">
+            <li key={s.id}>
+              <button
+                onClick={() => onOpen?.(s.id)}
+                disabled={!onOpen}
+                className="flex w-full items-center gap-2.5 rounded-sm px-1 py-0.5 text-left enabled:hover:bg-[var(--film-base)]"
+              >
               <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
               <span className="tabular w-20 shrink-0 truncate text-[11px]">{s.patient_ref || "—"}</span>
               <span className="flex-1 truncate text-[11px]" style={{ color: INK.secondary }}>
@@ -163,6 +213,7 @@ export function ActivityFeed({ studies }: { studies: Study[] }) {
               <span className="tabular shrink-0 text-[10px]" style={{ color: INK.secondary }}>
                 {s.latency_ms}ms
               </span>
+              </button>
             </li>
           );
         })}
@@ -172,7 +223,15 @@ export function ActivityFeed({ studies }: { studies: Study[] }) {
 }
 
 /* ── Abstention breakdown ─────────────────────────────────────────────── */
-export function DecisionSplit({ studies }: { studies: Study[] }) {
+export function DecisionSplit({
+  studies,
+  onSelect,
+  selected,
+}: {
+  studies: Study[];
+  onSelect?: (decision: string | null) => void;
+  selected?: string | null;
+}) {
   const { answered, abstained, rejected, total } = useMemo(() => {
     const rejected = studies.filter((s) => s.is_ood).length;
     const abstained = studies.filter((s) => s.abstained).length;
@@ -197,16 +256,23 @@ export function DecisionSplit({ studies }: { studies: Study[] }) {
     >
       <div className="flex h-8 gap-0.5 overflow-hidden rounded-sm">
         {segs.map((s) => (
-          <div
+          <button
             key={s.label}
-            className="grid place-items-center"
-            style={{ width: `${(s.n / total) * 100}%`, background: s.color, minWidth: 28 }}
-            title={`${s.label}: ${s.n} of ${total}`}
+            onClick={() => onSelect?.(selected === s.label ? null : s.label)}
+            disabled={!onSelect}
+            className="grid place-items-center transition-opacity"
+            style={{
+              width: `${(s.n / total) * 100}%`,
+              background: s.color,
+              minWidth: 28,
+              opacity: selected && selected !== s.label ? 0.35 : 1,
+            }}
+            title={`${s.label}: ${s.n} of ${total}${onSelect ? " — click to filter" : ""}`}
           >
             <span className="tabular text-[10px] font-semibold" style={{ color: "#0B0D0E" }}>
               {Math.round((s.n / total) * 100)}%
             </span>
-          </div>
+          </button>
         ))}
       </div>
     </ChartFrame>

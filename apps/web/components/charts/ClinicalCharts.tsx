@@ -529,8 +529,12 @@ export function FairnessBars({
    ══════════════════════════════════════════════════════════════════════ */
 export function TriageDonut({
   counts,
+  onSelect,
+  selected,
 }: {
   counts: { STAT: number; URGENT: number; ROUTINE: number };
+  onSelect?: (band: string | null) => void;
+  selected?: string | null;
 }) {
   const total = counts.STAT + counts.URGENT + counts.ROUTINE;
   const slices = [
@@ -549,7 +553,7 @@ export function TriageDonut({
   return (
     <ChartFrame
       title="Triage distribution"
-      subtitle="Priority mix across the current worklist"
+      subtitle="Priority mix. Click a band to filter the dashboard."
       legend={slices.map((s) => ({ label: `${s.label} (${s.value})`, color: s.color }))}
     >
       <div className="flex items-center justify-center py-1">
@@ -566,12 +570,15 @@ export function TriageDonut({
                   r={R}
                   fill="none"
                   stroke={s.color}
-                  strokeWidth={16}
+                  strokeWidth={selected === s.label ? 21 : 16}
                   strokeDasharray={dash}
                   strokeDashoffset={-offset}
                   strokeLinecap="butt"
+                  opacity={selected && selected !== s.label ? 0.35 : 1}
+                  style={{ cursor: onSelect ? "pointer" : "default" }}
+                  onClick={() => onSelect?.(selected === s.label ? null : s.label)}
                 >
-                  <title>{`${s.label}: ${s.value} of ${total}`}</title>
+                  <title>{`${s.label}: ${s.value} of ${total}${onSelect ? " — click to filter" : ""}`}</title>
                 </circle>
               );
               offset += frac * C;

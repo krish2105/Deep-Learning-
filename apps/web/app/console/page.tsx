@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { AuthPanel, OFFLINE_USER } from "@/components/console/Auth";
+import { QueryBar } from "@/components/console/AIPanels";
 import { DEMO_STUDIES } from "@/lib/demoFixtures";
 import { Panel, TABS, type Tab } from "@/components/console/Panels";
 import { Viewer } from "@/components/console/Viewer";
@@ -49,7 +51,25 @@ function toWorklist(studies: Study[]): WorklistItem[] {
  * is a tool someone uses repeatedly; weighting its scroll would trade their
  * speed for our polish. Motion here is limited to state feedback.
  */
-export default function Console() {
+export default function ConsolePage() {
+  // useSearchParams needs a Suspense boundary in the App Router, otherwise the
+  // whole route opts out of static rendering.
+  return (
+    <Suspense
+      fallback={
+        <div className="grid min-h-dvh place-items-center">
+          <p className="tabular text-xs tracking-widest text-[var(--film-mid)]">
+            LOADING
+          </p>
+        </div>
+      }
+    >
+      <Console />
+    </Suspense>
+  );
+}
+
+function Console() {
   const [user, setUser] = useState<User | null>(null);
   const [offline, setOffline] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -119,6 +139,9 @@ function Workspace({
   offline: boolean;
   onSignOut: () => void;
 }) {
+  // Deep link from the dashboard: /console?study=<id>
+  const params = useSearchParams();
+  const requested = params.get("study");
   const [worklist, setWorklist] = useState<WorklistItem[]>([]);
   const [studies, setStudies] = useState<Study[]>([]);
   const [study, setStudy] = useState<Study | null>(null);
@@ -127,6 +150,7 @@ function Workspace({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [patientRef, setPatientRef] = useState("");
+  const [filterIds, setFilterIds] = useState<string[] | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
@@ -144,6 +168,15 @@ function Workspace({
       /* worklist failure must not blank the screen */
     }
   }, [offline]);
+
+  useEffect(() => {
+    if (!requested || !studies.length) return;
+    const match = studies.find((s) => s.id === requested);
+    if (match) {
+      setStudy(match);
+      setTab("Overview");
+    }
+  }, [requested, studies]);
 
   useEffect(() => {
     refresh();
@@ -259,8 +292,12 @@ function Workspace({
         </p>
       )}
 
-      <div className="grid flex-1 gap-px lg:grid-cols-[260px_minmax(0,1fr)_360px]"
-           style={{ background: "var(--film-shoulder)" }}>
+      {/* Stacks on small screens. A fixed three-column grid forced a 900px
+          minimum and clipped the findings pane on laptops and tablets. */}
+      <div
+        className="grid flex-1 gap-px md:grid-cols-2 xl:grid-cols-[260px_minmax(0,1fr)_380px]"
+        style={{ background: "var(--film-shoulder)" }}
+      >
         {/* ── Worklist ─────────────────────────────────────────────────── */}
         <aside className="flex flex-col" style={{ background: "var(--film-base)" }}>
           <div className="border-b p-3" style={{ borderColor: "var(--film-shoulder)" }}>
@@ -321,16 +358,19 @@ function Workspace({
             )}
           </div>
 
+          <QueryBar onFilter={(ids) => setFilterIds(ids)} disabled={offline} />
+
           <div className="flex-1 overflow-y-auto">
             <p className="tabular px-3 pt-3 pb-1.5 text-[10px] tracking-[0.2em] text-[var(--film-mid)]">
-              WORKLIST · {worklist.length}
+              WORKLIST · {filterIds ? `${filterIds.length}/${worklist.length}` : worklist.length}
             </p>
-            {worklist.length === 0 ? (
+            {(filterIds ? worklist.filter((w) => filterIds.includes(w.id)) : worklist)
+              .length === 0 ? (
               <p className="px-3 py-4 text-xs text-[var(--film-mid)]">
                 No studies yet. Upload a radiograph to begin.
               </p>
             ) : (
-              worklist.map((w) => (
+              (filterIds ? worklist.filter((w) => filterIds.includes(w.id)) : worklist).map((w) => (
                 <button
                   key={w.id}
                   onClick={() => open(w.id)}
@@ -413,6 +453,7 @@ function Workspace({
                 <Panel
                   tab={tab}
                   study={study}
+                  onOpen={open}
                   siblings={studies.filter(
                     (s) => s.patient_ref && s.patient_ref === study.patient_ref,
                   )}
