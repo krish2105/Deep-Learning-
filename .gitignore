@@ -31,13 +31,24 @@ dist/
 # Models & data — too large for git, fetched at build/run time
 *.pth
 *.pt
-*.onnx
+# ONNX: the int8 classifier IS committed (7.9 MB) so the orchestrator can
+# serve real predictions with no external inference service. Larger fp32
+# intermediates stay ignored.
+*_fp32.onnx
 *.h5
 *.ckpt
 data/
 weights/
 !weights/.gitkeep
+
+# Training scratch output is ignored, but the DEPLOYED artefacts are tracked:
+# the int8 classifier (7.9 MB) so the orchestrator needs no external inference
+# service, and the calibration/policy/fairness JSON the notebooks export.
 artifacts/
+!apps/api/artifacts/
+!apps/api/artifacts/.gitkeep
+!apps/api/artifacts/*.onnx
+!apps/api/artifacts/*.json
 
 # OS / editor
 .DS_Store
@@ -49,3 +60,10 @@ Thumbs.db
 *.log
 npm-debug.log*
 .vercel
+
+# Local HF Space working clone and its zip — pushed to huggingface.co, not here
+hf-space/
+sentinel-cxr-space.zip
+
+# Local SQLite dev database
+apps/api/sentinel.db

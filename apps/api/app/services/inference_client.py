@@ -163,8 +163,16 @@ class InferenceClient:
         started = time.perf_counter()
         tensor = self._preprocess(image_bytes)
         name = session.get_inputs()[0].name
-        logits = np.asarray(session.run(None, {name: tensor})[0]).ravel()
-        probs = 1.0 / (1.0 + np.exp(-logits[:N_PATHOLOGIES]))
+        out = np.asarray(session.run(None, {name: tensor})[0]).ravel()
+
+        # The exported graph already ends in a sigmoid — TorchXRayVision applies
+        # it inside forward(). Applying it a second time maps [0,1] onto
+        # [0.50, 0.73], which would make every finding look like a coin flip and
+        # every study diffusely uncertain. Guard on the observed range rather
+        # than assuming, so a future logit-emitting export still works.
+        probs = out[:N_PATHOLOGIES]
+        if probs.min() < 0.0 or probs.max() > 1.0:
+            probs = 1.0 / (1.0 + np.exp(-probs))
 
         return InferenceResult(
             probabilities=probs,
@@ -178,15 +186,24 @@ class InferenceClient:
 
     @staticmethod
     def _preprocess(image_bytes: bytes) -> np.ndarray:
-        """Match the training transform: greyscale, 224x224, ImageNet stats."""
+        """Match the exported graph exactly: 1 channel, 224x224, [-1024, 1024].
+
+        This must mirror `services/inference/pipeline.py::_to_tensor`. An earlier
+        version applied ImageNet normalisation over three channels, which is the
+        convention for torchvision backbones but not for TorchXRayVision — it
+        produced the wrong shape AND the wrong intensity scale, so the fast path
+        would have returned meaningless scores rather than failing loudly.
+        """
         import io  # noqa: PLC0415
 
         from PIL import Image  # noqa: PLC0415
 
-        img = Image.open(io.BytesIO(image_bytes)).convert("L").resize((224, 224))
-        arr = np.asarray(img, dtype=np.float32) / 255.0
-        arr = (arr - 0.485) / 0.229
-        return np.repeat(arr[None, None, :, :], 3, axis=1)  # (1, 3, 224, 224)
+        img = Image.open(io.BytesIO(image_bytes)).convert("L").resize(
+            (224, 224), Image.BILINEAR
+        )
+        arr = np.asarray(img, dtype=np.float32)
+        arr = (arr / 255.0) * 2048.0 - 1024.0
+        return arr[None, None, :, :]  # (1, 1, 224, 224)
 
 
 _client: InferenceClient | None = None
