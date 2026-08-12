@@ -79,27 +79,65 @@ app.add_middleware(
 # In-process and per-instance. Adequate for a single free-tier dyno; a real
 # deployment would use Redis. Stated rather than pretended.
 _hits: dict[str, deque[float]] = defaultdict(deque)
-_EXEMPT = {"/api/v1/health", "/api/v1/ready", "/docs", "/openapi.json", "/"}
+
+# Cheap reads the single-page app fires on every navigation. Counting these
+# against the same budget as an analysis meant a few page loads could exhaust
+# the limit, producing a 429 that looked like a random failure.
+_EXEMPT = {
+    "/", "/docs", "/openapi.json",
+    "/api/v1/health", "/api/v1/ready", "/api/v1/pathologies",
+}
+
+# Inference costs ~1s of a 0.1-CPU instance; a GET costs almost nothing. One
+# shared budget had to be set low enough to protect the expensive path, which
+# then throttled ordinary browsing.
+WRITE_PATHS = ("/api/v1/studies/analyze", "/api/v1/auth/demo")
+READ_BUDGET = 240      # per minute — a page load is ~7 calls
+WRITE_BUDGET = 20      # per minute — protects the CPU
+
+
+def _client_ip(request: Request) -> str:
+    """The real caller's address, not the proxy's.
+
+    Render sits behind Cloudflare, so request.client.host is the edge node.
+    Bucketing on it puts EVERY visitor worldwide into one shared limit — the
+    limiter then behaves as a global cap and fails users who did nothing wrong.
+    Cloudflare's CF-Connecting-IP is authoritative here; X-Forwarded-For's first
+    entry is the fallback.
+    """
+    cf = request.headers.get("cf-connecting-ip")
+    if cf:
+        return cf.strip()
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
 
 
 @app.middleware("http")
 async def rate_limit(request: Request, call_next):
-    if request.url.path in _EXEMPT:
+    path = request.url.path
+    if path in _EXEMPT or request.method == "OPTIONS":
         return await call_next(request)
 
-    client = request.client.host if request.client else "unknown"
+    is_write = any(path.startswith(p) for p in WRITE_PATHS)
+    budget = WRITE_BUDGET if is_write else READ_BUDGET
+    key = f"{'w' if is_write else 'r'}:{_client_ip(request)}"
+
     now = time.time()
-    window = _hits[client]
+    window = _hits[key]
     while window and now - window[0] > 60.0:
         window.popleft()
 
-    if len(window) >= settings.rate_limit_per_minute:
+    if len(window) >= budget:
+        retry_after = max(1, int(60.0 - (now - window[0])) + 1)
         return JSONResponse(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            headers={"Retry-After": str(retry_after)},
             content={
                 "detail": (
-                    f"Rate limit reached ({settings.rate_limit_per_minute} requests "
-                    f"per minute). Wait a moment and try again."
+                    f"Too many requests. This endpoint allows {budget} per minute "
+                    f"and you have reached it. Try again in {retry_after}s."
                 )
             },
         )

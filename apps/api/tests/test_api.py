@@ -390,3 +390,54 @@ class TestReviewAndAudit:
 
         r = await client.get(f"/api/v1/studies/{study_id}", headers=other_headers)
         assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+class TestRateLimiting:
+    """The limiter must bucket per real client, not per proxy.
+
+    Render sits behind Cloudflare, so bucketing on request.client.host put every
+    visitor into one shared budget and produced 429s that looked random.
+    """
+
+    async def test_reads_are_not_throttled_by_normal_browsing(self, ctx):
+        client, headers, _ = ctx
+        # A page load fires roughly seven calls; browsing must not exhaust it.
+        for _ in range(40):
+            r = await client.get("/api/v1/studies", headers=headers)
+            assert r.status_code == 200, "ordinary reads must not hit the limiter"
+
+    async def test_distinct_clients_get_distinct_budgets(self, ctx):
+        client, headers, _ = ctx
+        # Two callers behind the same proxy but different real IPs.
+        for i in range(25):
+            r = await client.post(
+                "/api/v1/auth/demo",
+                headers={**headers, "cf-connecting-ip": "203.0.113.7"},
+            )
+            if r.status_code == 429:
+                break
+        # A different client must be unaffected by the first one's spending.
+        r = await client.post(
+            "/api/v1/auth/demo",
+            headers={**headers, "cf-connecting-ip": "203.0.113.99"},
+        )
+        assert r.status_code != 429, (
+            "a second client was throttled by the first — the limiter is "
+            "bucketing on the proxy address, not the caller"
+        )
+
+    async def test_429_tells_the_caller_when_to_retry(self, ctx):
+        client, headers, _ = ctx
+        hit = None
+        for _ in range(30):
+            r = await client.post(
+                "/api/v1/auth/demo",
+                headers={**headers, "cf-connecting-ip": "198.51.100.4"},
+            )
+            if r.status_code == 429:
+                hit = r
+                break
+        assert hit is not None, "the write budget should be reachable"
+        assert "Retry-After" in hit.headers
+        assert "Try again in" in hit.json()["detail"]
