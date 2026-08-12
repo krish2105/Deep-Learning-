@@ -22,6 +22,8 @@ from typing import Any
 import httpx
 import numpy as np
 
+from pathlib import Path
+
 from ..config import get_settings
 from ..core.pathologies import N_PATHOLOGIES, PATHOLOGIES
 
@@ -54,6 +56,7 @@ class InferenceClient:
     def __init__(self) -> None:
         self._onnx = None
         self._onnx_tried = False
+        self._onnx_error: str = ""
 
     # ── public ───────────────────────────────────────────────────────────
     async def analyze(
@@ -95,10 +98,14 @@ class InferenceClient:
                     state = "warm" if r.status_code == 200 else "error"
             except httpx.HTTPError:
                 state = "cold"
-        return {
+        out = {
             "inference_core": state,
             "fast_path": "ready" if self._load_onnx() is not None else "unavailable",
         }
+        # Surfaced so a remote failure can be diagnosed without shell access.
+        if self._onnx_error:
+            out["fast_path_error"] = self._onnx_error
+        return out
 
     # ── backends ─────────────────────────────────────────────────────────
     async def _call_space(self, image_bytes: bytes, want_gradcam: bool) -> InferenceResult:
@@ -131,26 +138,55 @@ class InferenceClient:
         )
 
     def _load_onnx(self):
+        """Load the int8 classifier, recording precisely why if it fails.
+
+        A remote 512 MB instance gives no way to inspect the filesystem, so the
+        failure reason is captured and surfaced through /ready. Debugging this
+        by redeploying with guesses is far more expensive than carrying one
+        string.
+        """
         if self._onnx_tried:
             return self._onnx
         self._onnx_tried = True
+
         try:
             import onnxruntime as ort  # noqa: PLC0415
+        except ImportError as exc:
+            self._onnx_error = f"onnxruntime not installed: {exc}"
+            log.warning(self._onnx_error)
+            return None
 
-            if not settings.onnx_path.exists():
-                log.info("No ONNX model at %s; fast path disabled", settings.onnx_path)
-                return None
+        path = settings.onnx_path
+        if not path.exists():
+            # Name what IS there — a wrong working directory and a missing file
+            # look identical from the outside otherwise.
+            try:
+                siblings = sorted(p.name for p in path.parent.iterdir())[:12]
+            except OSError:
+                siblings = ["<artifacts dir does not exist>"]
+            self._onnx_error = (
+                f"model not found at {path} (cwd={Path.cwd()}); "
+                f"artifacts dir contains: {siblings}"
+            )
+            log.warning(self._onnx_error)
+            return None
+
+        try:
             opts = ort.SessionOptions()
             opts.intra_op_num_threads = 1  # 0.1 CPU — threads would only thrash
-            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            opts.inter_op_num_threads = 1
+            # The default arena pre-allocates aggressively, which is the wrong
+            # trade on a 512 MB instance serving one request at a time.
+            opts.enable_cpu_mem_arena = False
+            opts.enable_mem_pattern = False
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
             self._onnx = ort.InferenceSession(
-                str(settings.onnx_path), opts, providers=["CPUExecutionProvider"]
+                str(path), opts, providers=["CPUExecutionProvider"]
             )
-            log.info("ONNX fast path ready")
-        except ImportError:
-            log.info("onnxruntime not installed; fast path disabled")
+            log.info("ONNX fast path ready (%.1f MB model)", path.stat().st_size / 1e6)
         except Exception as exc:  # noqa: BLE001 - must never take the API down
-            log.warning("ONNX model failed to load: %s", exc)
+            self._onnx_error = f"{type(exc).__name__}: {exc}"
+            log.warning("ONNX model failed to load: %s", self._onnx_error)
         return self._onnx
 
     def _call_onnx(self, image_bytes: bytes) -> InferenceResult | None:
