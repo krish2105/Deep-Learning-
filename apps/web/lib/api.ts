@@ -48,8 +48,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   try {
     res = await fetch(`${BASE}${path}`, { ...init, headers });
   } catch {
+    // A blocked CORS preflight and a dead server are indistinguishable from
+    // here -- fetch rejects identically for both. Name both possibilities
+    // rather than emitting a generic "network error" that sends someone
+    // hunting in the wrong place.
     throw new ApiError(
-      "Cannot reach the API. Check that the backend is running and NEXT_PUBLIC_API_URL is correct.",
+      `Cannot reach the API at ${BASE}. Either it is asleep (free tier spins ` +
+        `down after 15 minutes; the first request can take up to a minute), or ` +
+        `it is not allowing requests from this origin. Check /api/v1/health.`,
       0,
     );
   }
@@ -60,6 +66,19 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!res.ok) {
     if (res.status === 401) auth.clear();
+
+    // A 404 on a route the client knows about means the deployed API predates
+    // this build. Saying "Not Found" would send someone debugging the button
+    // rather than redeploying the server.
+    if (res.status === 404 && path.startsWith("/api/v1/auth/")) {
+      throw new ApiError(
+        "This feature is missing from the deployed API, which is running an " +
+          "older build than this site. Redeploy the backend from the latest " +
+          "commit and try again.",
+        404,
+      );
+    }
+
     const detail = payload?.detail;
     const message =
       typeof detail === "string"
