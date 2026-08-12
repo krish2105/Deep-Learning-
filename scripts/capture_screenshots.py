@@ -71,7 +71,7 @@ def main() -> None:
 
             # The tab row only renders once a study is open, so select the top
             # of the worklist first. Without this every tab click timed out.
-            page.click("aside button:has-text('STAT'), aside button:has-text('URGENT')", timeout=15_000)
+            page.click("aside button:has-text('DEMO-')", timeout=15_000)
             page.wait_for_timeout(3500)
 
             for tab, name, cap in [

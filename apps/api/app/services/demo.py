@@ -237,7 +237,11 @@ def _build_study(fixture: dict, user_id: str, priors: list[np.ndarray]) -> Study
         follow_up_index=fixture["follow_up"],
         original_filename=f"{fixture['key']}.png",
         image_url=_cached(fixture["image"][0], fixture["image"][1]),
-        mode="full",
+        # "reduced", matching how the deployed system actually runs. Claiming
+        # "full" made the interface describe its maps as gradient-based
+        # Grad-CAM while the orchestrator was serving class activation maps --
+        # the demo asserting a capability the deployment does not have.
+        mode="reduced",
         created_at=created,
         latency_ms=int(700 + abs(hash(fixture["key"])) % 900),
     )

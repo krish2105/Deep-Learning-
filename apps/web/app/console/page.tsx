@@ -164,6 +164,15 @@ function Workspace({
       const [w, s] = await Promise.all([api.worklist(), api.studies()]);
       setWorklist(w);
       setStudies(s);
+      // Open the highest-priority study automatically. Landing on "No study
+      // selected" left two thirds of the console empty and asked the reviewer
+      // to guess the next move; a reading console should open on the case that
+      // most needs reading.
+      setStudy((cur) => {
+        if (cur) return cur;
+        const top = s.find((x) => x.id === w[0]?.id);
+        return top ?? null;
+      });
     } catch {
       /* worklist failure must not blank the screen */
     }
