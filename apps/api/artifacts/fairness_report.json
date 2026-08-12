@@ -1,0 +1,102 @@
+{
+  "generated_at": "2026-08-12T17:12:37.306120+00:00",
+  "pathology": "macro (averaged over labels with >=20 positives per stratum)",
+  "strata": [
+    {
+      "stratum": "Gender",
+      "value": "F",
+      "n": 1175,
+      "n_positive": 750,
+      "auc": 0.7133,
+      "tpr": 0.8715,
+      "fpr": 0.5761
+    },
+    {
+      "stratum": "Gender",
+      "value": "M",
+      "n": 1240,
+      "n_positive": 814,
+      "auc": 0.746,
+      "tpr": 0.888,
+      "fpr": 0.6028
+    },
+    {
+      "stratum": "age band",
+      "value": "<30",
+      "n": 304,
+      "n_positive": 89,
+      "auc": 0.6592,
+      "tpr": 0.8058,
+      "fpr": 0.6373
+    },
+    {
+      "stratum": "age band",
+      "value": "30-50",
+      "n": 670,
+      "n_positive": 383,
+      "auc": 0.7055,
+      "tpr": 0.825,
+      "fpr": 0.5821
+    },
+    {
+      "stratum": "age band",
+      "value": "50-70",
+      "n": 1120,
+      "n_positive": 665,
+      "auc": 0.7393,
+      "tpr": 0.9024,
+      "fpr": 0.576
+    },
+    {
+      "stratum": "age band",
+      "value": "70+",
+      "n": 321,
+      "n_positive": 146,
+      "auc": 0.6705,
+      "tpr": 0.9353,
+      "fpr": 0.78
+    },
+    {
+      "stratum": "View Position",
+      "value": "AP",
+      "n": 783,
+      "n_positive": 617,
+      "auc": 0.6696,
+      "tpr": 0.8902,
+      "fpr": 0.7451
+    },
+    {
+      "stratum": "View Position",
+      "value": "PA",
+      "n": 1632,
+      "n_positive": 931,
+      "auc": 0.7548,
+      "tpr": 0.8674,
+      "fpr": 0.5302
+    }
+  ],
+  "gaps": [
+    {
+      "stratum": "Gender",
+      "tpr_gap": 0.0165,
+      "fpr_gap": 0.0267,
+      "auc_gap": 0.0327
+    },
+    {
+      "stratum": "View Position",
+      "tpr_gap": 0.0228,
+      "fpr_gap": 0.2149,
+      "auc_gap": 0.0852
+    },
+    {
+      "stratum": "age band",
+      "tpr_gap": 0.1295,
+      "fpr_gap": 0.204,
+      "auc_gap": 0.0801
+    }
+  ],
+  "max_equalised_odds_gap": 0.2149,
+  "within_tolerance": false,
+  "tolerance": 0.1,
+  "note": "Disparities are reported whether or not they are favourable. A gap within tolerance is not evidence of fairness, only that this audit did not detect a violation. ChestX-ray14 carries no race or ethnicity labels, so a major documented axis of disparity in medical AI cannot be examined here at all."
+}

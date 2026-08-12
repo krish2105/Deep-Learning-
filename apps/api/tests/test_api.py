@@ -326,20 +326,49 @@ class TestSystemSurfaces:
         client, _, _ = ctx
         assert (await client.get("/api/v1/health")).json()["status"] == "ok"
 
-    async def test_calibration_warns_when_unfitted(self, ctx):
-        """An uncalibrated system must say so, not imply a guarantee."""
+    async def test_calibration_state_is_reported_either_way(self, ctx):
+        """The system must state whether its guarantee is actually in force.
+
+        Originally this asserted `fitted is False`, which quietly encoded "no
+        calibration artefact has been produced yet". Fitting one on real data
+        then broke the test even though the behaviour was correct. What matters
+        is not which state we are in but that the state is reported truthfully
+        and the warning appears exactly when it should.
+        """
         client, headers, _ = ctx
         body = (
             await client.get("/api/v1/studies/system/calibration", headers=headers)
         ).json()
-        assert body["fitted"] is False
-        assert "not guaranteed" in body["warning"].lower()
 
-    async def test_fairness_reports_absence_honestly(self, ctx):
+        assert isinstance(body["fitted"], bool)
+        assert 0.0 < body["coverage_target"] < 1.0
+
+        if body["fitted"]:
+            assert body["warning"] is None
+            assert len(body["thresholds"]) == N_PATHOLOGIES
+        else:
+            assert "not guaranteed" in body["warning"].lower()
+
+    async def test_fairness_reports_its_own_state(self, ctx):
+        """Absent audit -> say so. Present audit -> report the gap honestly.
+
+        A breach must never be silently downgraded: if the measured gap exceeds
+        tolerance, `within_tolerance` has to be False. Outcome E is assessed
+        only in this project, so a fairness surface that flattered the model
+        would be the worst possible failure here.
+        """
         client, headers, _ = ctx
         body = (await client.get("/api/v1/fairness", headers=headers)).json()
-        assert body["available"] is False
-        assert "notebooks/11_fairness_ethics.ipynb" in body["message"]
+
+        if not body["available"]:
+            assert "fairness" in body["message"].lower()
+            return
+
+        gap = body["max_equalised_odds_gap"]
+        assert body["within_tolerance"] == (gap <= body["tolerance"]), (
+            "a measured gap above tolerance must be reported as a breach"
+        )
+        assert body["note"]
 
     async def test_root_carries_disclaimer(self, ctx):
         client, _, _ = ctx
