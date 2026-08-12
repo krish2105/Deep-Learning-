@@ -99,7 +99,13 @@ function build() {
   return { target, scattered, heat };
 }
 
-function Thorax({ progress }: { progress: React.RefObject<number> }) {
+function Thorax({
+  progress,
+  light,
+}: {
+  progress: React.RefObject<number>;
+  light: boolean;
+}) {
   const ref = useRef<THREE.Points>(null);
   const { target, scattered, heat } = useMemo(build, []);
   const { size } = useThree();
@@ -107,9 +113,13 @@ function Thorax({ progress }: { progress: React.RefObject<number> }) {
   const positions = useMemo(() => new Float32Array(scattered), [scattered]);
 
   const { cold, warm } = useMemo(() => {
-    const base = new THREE.Color("#46545C");
-    const instrument = new THREE.Color("#2E9CB8");
-    const warnC = new THREE.Color("#D9903F");
+    // Additive blending only reads correctly against a dark ground: on white it
+    // saturates toward white and the volume disappears. In light mode the
+    // points are dark ink on paper with normal blending instead — the same
+    // "light box" inversion the printed-report theme uses elsewhere.
+    const base = new THREE.Color(light ? "#7C8A93" : "#46545C");
+    const instrument = new THREE.Color(light ? "#1B7D97" : "#2E9CB8");
+    const warnC = new THREE.Color(light ? "#9A6414" : "#D9903F");
     const c = new Float32Array(COUNT * 3);
     const w = new Float32Array(COUNT * 3);
     const tmp = new THREE.Color();
@@ -120,9 +130,18 @@ function Thorax({ progress }: { progress: React.RefObject<number> }) {
       w.set([tmp.r, tmp.g, tmp.b], i * 3);
     }
     return { cold: c, warm: w };
-  }, [heat]);
+  }, [heat, light]);
 
   const colorAttr = useMemo(() => new Float32Array(cold), [cold]);
+  // Rebuild the buffer when the palette changes, or a theme switch leaves the
+  // old colours baked into the attribute until the next heat update.
+  useMemo(() => {
+    if (ref.current) {
+      const col = ref.current.geometry.attributes.color;
+      (col.array as Float32Array).set(cold);
+      col.needsUpdate = true;
+    }
+  }, [cold]);
   const eased = useRef(0);
   const pointer = useRef({ x: 0, y: 0 });
 
@@ -171,10 +190,10 @@ function Thorax({ progress }: { progress: React.RefObject<number> }) {
         size={size.width < 768 ? 0.016 : 0.0115}
         vertexColors
         transparent
-        opacity={0.95}
+        opacity={light ? 0.72 : 0.95}
         sizeAttenuation
         depthWrite={false}
-        blending={THREE.AdditiveBlending}
+        blending={light ? THREE.NormalBlending : THREE.AdditiveBlending}
       />
     </points>
   );
@@ -182,8 +201,10 @@ function Thorax({ progress }: { progress: React.RefObject<number> }) {
 
 export default function HeroCanvas({
   progress,
+  light = false,
 }: {
   progress: React.RefObject<number>;
+  light?: boolean;
 }) {
   return (
     <Canvas
@@ -192,7 +213,7 @@ export default function HeroCanvas({
       gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
       style={{ position: "absolute", inset: 0 }}
     >
-      <Thorax progress={progress} />
+      <Thorax progress={progress} light={light} />
     </Canvas>
   );
 }

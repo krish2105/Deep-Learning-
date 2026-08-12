@@ -4,6 +4,7 @@ import Link from "next/link";
 import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
+import { useResolvedTheme } from "@/lib/useTheme";
 
 const HeroCanvas = dynamic(() => import("./HeroCanvas"), { ssr: false });
 
@@ -33,6 +34,8 @@ function webglAvailable(): boolean {
  */
 export function Hero() {
   const reduce = useReducedMotion();
+  const theme = useResolvedTheme();
+  const light = theme === "light";
   const [enable3d, setEnable3d] = useState(false);
   const progress = useRef(0);
   const ref = useRef<HTMLElement>(null);
@@ -62,19 +65,20 @@ export function Hero() {
     <section
       ref={ref}
       className="relative min-h-[100svh] overflow-hidden"
-      style={{ background: "#0B0D0E" }}
+      style={{ background: "var(--film-base)" }}
     >
       {/* The canvas is fixed so the volume persists behind the whole page. */}
       <div className="pointer-events-none fixed inset-0 z-0">
         {enable3d ? (
-          <HeroCanvas progress={progress} />
+          <HeroCanvas progress={progress} light={light} />
         ) : (
           <div
             aria-hidden
             className="absolute inset-0"
             style={{
-              background:
-                "radial-gradient(120% 80% at 50% 40%, #1B2429 0%, #0B0D0E 62%)",
+              background: light
+                ? "radial-gradient(120% 80% at 50% 40%, #FFFFFF 0%, #EDF0F2 62%)"
+                : "radial-gradient(120% 80% at 50% 40%, #1B2429 0%, #0B0D0E 62%)",
             }}
           />
         )}
@@ -82,7 +86,7 @@ export function Hero() {
         <motion.div
           aria-hidden
           className="absolute inset-0"
-          style={{ background: "#0B0D0E", opacity: veil }}
+          style={{ background: "var(--film-base)", opacity: veil }}
         />
       </div>
 
@@ -90,13 +94,18 @@ export function Hero() {
         className="relative z-10 mx-auto flex min-h-[100svh] max-w-6xl flex-col justify-center px-6 pt-24"
         style={{ opacity: reduce ? 1 : textOpacity, y: reduce ? 0 : textY }}
       >
-        <p className="tabular text-[11px] tracking-[0.34em] text-white/45">
+        <p className="tabular text-[11px] tracking-[0.34em]"
+          style={{ color: "var(--film-mid)" }}>
           MAIB AI 114 · FINAL GROUP PROJECT
         </p>
 
         <h1
-          className="mt-6 font-[family-name:var(--font-display)] tracking-[-0.035em] text-white"
-          style={{ fontSize: "var(--text-hero)", lineHeight: 0.88 }}
+          className="mt-6 font-[family-name:var(--font-display)] tracking-[-0.035em]"
+          style={{
+            fontSize: "var(--text-hero)",
+            lineHeight: 0.9,
+            color: "var(--film-highlight)",
+          }}
         >
           <span className="block">It tells you when</span>
           <span className="block">
@@ -105,7 +114,8 @@ export function Hero() {
           </span>
         </h1>
 
-        <p className="mt-8 max-w-xl text-[var(--text-step-1)] leading-relaxed text-white/60">
+        <p className="mt-8 max-w-xl text-[var(--text-step-1)] leading-relaxed"
+          style={{ color: "var(--film-mid)" }}>
           A chest radiograph triage system with calibrated uncertainty. Fourteen
           pathologies, a distribution-free coverage guarantee, and the discipline
           to abstain rather than guess.
@@ -121,15 +131,20 @@ export function Hero() {
           </Link>
           <Link
             href="/dashboard"
-            className="rounded-full border px-7 py-3.5 text-sm font-medium text-white/80"
-            style={{ borderColor: "rgba(255,255,255,0.18)" }}
+            className="rounded-full border px-7 py-3.5 text-sm font-medium"
+            style={{
+              borderColor: "var(--film-shoulder)",
+              color: "var(--film-highlight)",
+            }}
           >
             View the dashboard
           </Link>
         </div>
 
-        <div className="mt-14 flex flex-wrap gap-x-10 gap-y-4 border-t pt-6"
-             style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+        <div
+          className="mt-14 flex flex-wrap gap-x-10 gap-y-4 border-t pt-6"
+          style={{ borderColor: "var(--film-shoulder)" }}
+        >
           {[
             ["0.9004", "empirical coverage"],
             ["151 ms", "on 0.1 CPU"],
@@ -137,8 +152,12 @@ export function Hero() {
             ["83", "tests passing"],
           ].map(([v, l]) => (
             <div key={l}>
-              <p className="tabular text-lg text-white">{v}</p>
-              <p className="text-[11px] text-white/45">{l}</p>
+              <p className="tabular text-lg" style={{ color: "var(--film-highlight)" }}>
+                {v}
+              </p>
+              <p className="text-[11px]" style={{ color: "var(--film-mid)" }}>
+                {l}
+              </p>
             </div>
           ))}
         </div>
@@ -149,7 +168,10 @@ export function Hero() {
         className="absolute inset-x-0 bottom-6 z-10 flex justify-center"
         style={{ opacity: reduce ? 1 : textOpacity }}
       >
-        <span className="tabular text-[10px] tracking-[0.3em] text-white/35">
+        <span
+          className="tabular text-[10px] tracking-[0.3em]"
+          style={{ color: "var(--film-mid)" }}
+        >
           SCROLL TO ASSEMBLE
         </span>
       </motion.div>
