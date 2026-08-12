@@ -73,6 +73,17 @@ class Reordered(torch.nn.Module):
         return out.index_select(1, self.idx) * self.mask
 
 
+def _pinned_onnxruntime() -> str | None:
+    """The onnxruntime version the deployed API will run, from requirements."""
+    req = ROOT / "apps" / "api" / "requirements.txt"
+    if not req.exists():
+        return None
+    for line in req.read_text().splitlines():
+        if line.strip().startswith("onnxruntime=="):
+            return line.split("==", 1)[1].strip()
+    return None
+
+
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -111,18 +122,49 @@ def main() -> None:
     print("Quantising to int8 …")
     from onnxruntime.quantization import QuantType, quantize_dynamic
 
+    # QUInt8, not QInt8. Both emit ConvInteger nodes, but onnxruntime's CPU
+    # provider only ships a kernel for the unsigned variant until 1.22 — a
+    # QInt8 model exports and quantises without complaint, then fails at
+    # SESSION CREATION on the deployed runtime with NOT_IMPLEMENTED. Since the
+    # pinned server version is older than this machine's, that failure appears
+    # only in production, which is exactly where it appeared.
     quantize_dynamic(
         model_input=str(FP32),
         model_output=str(INT8),
-        weight_type=QuantType.QInt8,
+        weight_type=QuantType.QUInt8,
     )
     print(f"  {INT8.name}  {INT8.stat().st_size / 1e6:.1f} MB")
 
     # ── verification ────────────────────────────────────────────────────
-    print("\nVerifying against PyTorch on random inputs …")
     import onnxruntime as ort
 
-    sess = ort.InferenceSession(str(INT8), providers=["CPUExecutionProvider"])
+    # Check the runtime that will actually SERVE this file matches the one
+    # verifying it. Exporting on a newer onnxruntime than production silently
+    # allows operators the server cannot execute.
+    pinned = _pinned_onnxruntime()
+    if pinned and pinned != ort.__version__:
+        print(
+            f"\n  WARNING: exporting with onnxruntime {ort.__version__} but "
+            f"apps/api/requirements.txt pins {pinned}.\n"
+            f"  Operator support differs between versions. Install the pinned "
+            f"version before trusting this export:\n"
+            f"      pip install onnxruntime=={pinned}"
+        )
+
+    print("\nCreating an inference session (catches unsupported operators) …")
+    try:
+        sess = ort.InferenceSession(str(INT8), providers=["CPUExecutionProvider"])
+    except Exception as exc:
+        INT8.unlink(missing_ok=True)
+        FP32.unlink(missing_ok=True)
+        sys.exit(
+            f"FAILED: the quantised model does not load on onnxruntime "
+            f"{ort.__version__}:\n  {exc}\n"
+            "Refusing to ship a model the server cannot execute."
+        )
+    print("  session created OK")
+
+    print("\nVerifying against PyTorch on random inputs …")
     name = sess.get_inputs()[0].name
 
     diffs, rank_ok = [], 0
