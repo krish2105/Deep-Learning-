@@ -36,13 +36,13 @@ no intended clinical user, because the system is not fit for clinical use.
 
 | Component | Architecture | Purpose |
 |---|---|---|
-| Classifier | DenseNet-121, 14 sigmoid outputs | Multi-label pathology scoring |
+| Classifier | DenseNet-121, int8 ONNX (7.9 MB) | Multi-label pathology scoring, ~150 ms on 0.1 CPU |
 | OOD gate | Convolutional VAE, 128-d latent | Reject non-radiographs |
 | Uncertainty | MC-dropout, or TTA when dropout is absent | Aleatoric / epistemic split |
 | Conformal head | Split conformal, per-label | Prediction sets with coverage |
 | Progression | GRU / LSTM with masked attention | Change across prior studies |
 | Triage | Double DQN, linear head exported | Worklist ordering |
-| Explanation | Grad-CAM on `denseblock4` | Spatial attribution |
+| Explanation | Class activation mapping (fast path), Grad-CAM (full path) | Spatial attribution |
 | Reporting | Gemini 2.5 Flash-Lite, verified | Draft findings and impression |
 
 ### Weight provenance
@@ -96,18 +96,41 @@ predicts absence scores 99%.
 
 | Measurement | Result |
 |---|---|
-| Conformal implementation, macro empirical coverage | 0.9004 against 0.90 nominal |
+| **Macro empirical coverage (real data)** | **0.8845 against 0.90 nominal — below target** |
+| Calibration corpus | 4,999 radiographs, 1,335 patients, patient-disjoint |
+| **Max equalised-odds gap** | **0.2149 — BREACHES the 0.10 tolerance** |
+| Worst stratum | View position (AP/PA), FPR gap 0.2149 |
+| Quantisation fidelity | mean abs diff 9e-05 vs fp32, 8/8 top-1 agreement |
 | Backpropagation gradient check, max relative error | 7.2 × 10⁻¹¹ |
 | Triage: urgency heuristic vs FIFO | −397.7 vs −841.7 mean return |
 | Gradient survival at t=0, gated vs vanilla RNN | ~4 orders of magnitude |
 | Automated tests | 80 passing |
 
-Full-dataset classification and fairness figures require the complete training run and
-are left explicitly blank rather than estimated.
+Coverage is approached but **not attained**: macro 0.8845 against a 0.90 target,
+with Emphysema at 0.774 and Pneumonia at 0.794. Split conformal assumes
+exchangeability, and patient-disjoint splitting — which is required to prevent
+follow-up leakage — breaks it. Rare labels also have thin calibration sets
+(Pneumonia 31 positives, Hernia 7). Reported rather than tuned away.
+
+The fairness audit **fails its own tolerance**. See §6.
 
 ---
 
 ## 6. Fairness
+
+**Result: the audit fails.** Maximum equalised-odds gap 0.2149 against a 0.10
+tolerance, measured on 2,415 held-out images.
+
+| Stratum | TPR gap | FPR gap | Within 0.10? |
+|---|---|---|---|
+| Patient sex | 0.0165 | 0.0267 | Yes |
+| Age band | 0.1295 | 0.2040 | **No** |
+| View position | 0.0228 | **0.2149** | **No** |
+
+The view-position result confirms the shortcut predicted in the design spec
+before any data was examined. The FPR gap is an order of magnitude larger than
+the TPR gap, meaning the model is not *missing* more disease on AP films — it is
+*over-calling* it. That asymmetry is the signature of a shortcut.
 
 **Audited strata:** patient sex, age band (<30, 30–50, 50–70, 70+), view position
 (AP / PA). Reported as equalised-odds gaps — the maximum within-stratum difference in

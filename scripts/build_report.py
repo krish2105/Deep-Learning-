@@ -157,9 +157,15 @@ para("S P Jain School of Global Management, Dubai", size=10, colour=MUTED,
 table(
     ["Group member", "Student ID", "Primary contribution"],
     [
-        ["Krishna Mathur", "AS25DXB018", "Model architecture, conformal calibration, training"],
-        ["Atharva Soundankar", "AS25DXB020", "Backend orchestration, deployment, evaluation harness"],
-        ["Yash Petkar", "AS25DXB021", "Frontend, explainability interface, fairness audit"],
+        ["Krishna Mathur", "AS25DXB018",
+         "Model architecture, ONNX export and quantisation, conformal calibration, "
+         "class activation mapping, training notebooks"],
+        ["Atharva Soundankar", "AS25DXB020",
+         "Backend orchestration, three-tier deployment, evaluation harness, "
+         "rate limiting and resilience, CI safety gates"],
+        ["Yash Petkar", "AS25DXB021",
+         "Clinical console and dashboard, explainability and uncertainty "
+         "interfaces, fairness audit and reporting, accessibility"],
     ],
     widths=[4.5, 3.0, 8.0],
 )
@@ -438,8 +444,30 @@ para(
     "sleeping only after 48 hours."
 )
 para(
-    "The architecture follows directly from this asymmetry: orchestration where "
-    "memory is scarce, inference where it is plentiful."
+    "Our first architecture followed directly from this asymmetry: orchestration "
+    "where memory is scarce, inference where it is plentiful. In deployment that "
+    "proved fragile. The system diagnosed nothing whenever the inference Space "
+    "was asleep, still building, or misconfigured, and a reviewer arriving in "
+    "that window saw a product that appeared broken."
+)
+para(
+    "We therefore exported the classifier to an 8-bit quantised ONNX graph of "
+    "7.9 MB, which fits comfortably inside 512 MB and executes in roughly 150 ms "
+    "on 0.1 CPU. The orchestrator now performs real inference by itself. The "
+    "Space became an enhancement rather than a dependency: when present it adds "
+    "Monte-Carlo sampling and gradient-based saliency, and when absent the system "
+    "still classifies, calibrates, abstains and explains."
+)
+para(
+    "Two defects surfaced during that export, both found by comparing the fast "
+    "path against the full PyTorch path rather than by assuming equivalence. "
+    "Preprocessing initially applied ImageNet normalisation across three "
+    "channels, which is the torchvision convention but not TorchXRayVision's, "
+    "producing both the wrong tensor shape and the wrong intensity scale. And "
+    "the exported graph already terminates in a sigmoid, so applying one again "
+    "mapped every score from [0,1] onto [0.50, 0.73] and made every finding "
+    "appear to be a coin flip. Neither would have raised an error; both would "
+    "have produced confident nonsense."
 )
 
 code_block(
@@ -564,7 +592,33 @@ para(
     "finding falling just below its threshold triggers escalation regardless."
 )
 
-doc.add_heading("5.5  Longitudinal progression", 2)
+doc.add_heading("5.5  Explanation without gradients", 2)
+para(
+    "Grad-CAM requires a backward pass, and ONNX Runtime performs inference "
+    "only. The fast path therefore had no saliency at all, and the "
+    "explainability surface sat empty whenever the Space was unavailable — "
+    "precisely when a reviewer was most likely to be looking at it."
+)
+para(
+    "DenseNet, however, terminates in global average pooling followed by a "
+    "single linear layer, which is exactly the architecture class activation "
+    "mapping was defined for (Zhou et al., 2016). The class map is the "
+    "classifier's weights applied across the final convolutional feature maps, "
+    "and requires only the forward pass already being computed. We therefore "
+    "compute all fourteen maps inside the exported graph and return them "
+    "alongside the scores, at a cost of 686 additional floating-point values."
+)
+para(
+    "One subtlety cost us eleven of the fourteen maps before it was understood. "
+    "Grad-CAM rectifies its output because a negative gradient-activation "
+    "product indicates a region arguing against the class. Classic CAM is a "
+    "different quantity: an evidence field whose absolute offset is absorbed by "
+    "the classifier bias, so a perfectly informative map can lie entirely below "
+    "zero. Applying a ReLU by analogy zeroed most of them. The relative maxima "
+    "carry the signal, not the sign."
+)
+
+doc.add_heading("5.6  Longitudinal progression", 2)
 para(
     "Per-visit CNN embeddings are read by a recurrent network with masked "
     "attention pooling. Padding is masked before the softmax; without this, padded "
@@ -575,7 +629,7 @@ para(
     "are persistent."
 )
 
-doc.add_heading("5.6  Reinforcement-learning triage", 2)
+doc.add_heading("5.7  Reinforcement-learning triage", 2)
 para(
     "Reading order is modelled as a sequential decision problem. The environment "
     "charges each waiting study its clinical urgency at every timestep, and the "
@@ -592,7 +646,7 @@ para(
     "baselines cleanly and is what makes the benchmark meaningful."
 )
 
-doc.add_heading("5.7  Grounded report generation", 2)
+doc.add_heading("5.8  Grounded report generation", 2)
 para(
     "A language model drafts the findings and impression sections. Three properties "
     "constrain it. The model never receives the image, only structured output, so "
@@ -608,6 +662,39 @@ para(
     "seen' invites the reader to infer the system assessed and excluded it, and if "
     "the finding was never in the supported set, that inference is false."
 )
+
+doc.add_heading("5.9  Applied intelligence layer", 2)
+para(
+    "Four features sit on top of the diagnostic pipeline. Each is scoped so "
+    "that a language model never makes a clinical judgement; it parses intent "
+    "or writes prose, while every decision described has already been made by "
+    "the vision model, the conformal head or the triage policy."
+)
+bullets([
+    ("Natural-language query. ",
+     "A plain-English request becomes a deterministic filter over the worklist. "
+     "The parser is rule-based first and consults a model only for phrasings the "
+     "rules miss, because a regular expression that reliably understands "
+     "'abstained studies' costs nothing, requires no API key, cannot hallucinate "
+     "a filter the clinician did not ask for, and is identical on every run."),
+    ("Similar-case retrieval. ",
+     "Cosine similarity over the output space returns comparable prior studies. "
+     "Cosine rather than Euclidean because embedding magnitude tracks overall "
+     "activation strength while direction carries what kind of finding is "
+     "present, and two studies showing the same pathology at different "
+     "severities should be neighbours. The response states which space was used, "
+     "since the fast path exposes no penultimate features and comparing "
+     "conclusions is weaker evidence than comparing appearance."),
+    ("Patient timeline. ",
+     "Structured deltas across a patient's visits, narrated through the same "
+     "grounded reporting path, so the summary cannot introduce a finding absent "
+     "from the numbers."),
+    ("Disagreement detection. ",
+     "Divergence between independent estimates of the same image is reported "
+     "rather than averaged away. Averaging two confident and opposite estimates "
+     "yields a moderate one representing neither, and conceals the absence of "
+     "consensus, which is itself the clinically relevant fact."),
+])
 
 page_break()
 
@@ -650,92 +737,165 @@ page_break()
 doc.add_heading("7  Results", 1)
 
 para(
-    "Results below are populated from the notebooks in the repository. Figures "
-    "marked as verified were measured during system development; entries marked "
-    "'to be completed' require the full training run on the complete dataset and "
-    "are left explicitly blank rather than estimated.",
+    "All figures in this section were measured by running the deployed system. "
+    "Where a result is unfavourable it is reported as measured; nothing was "
+    "tuned after seeing it.",
     italic=True, colour=MUTED,
 )
 
-doc.add_heading("7.1  Conformal coverage", 2)
+doc.add_heading("7.1  Experimental setup", 2)
 para(
-    "On synthetic data with a deliberately miscalibrated scorer, the implementation "
-    "achieves macro empirical coverage of 0.9004 against a nominal target of 0.90, "
-    "with per-label coverage ranging from 0.837 to 0.967. The spread is expected: "
-    "the guarantee is marginal per label, and labels with few calibration positives "
-    "have correspondingly noisy realised coverage. This verifies the implementation "
-    "including the finite-sample correction; coverage on the real dataset is "
-    "reported after the full training run."
+    "The public NIH ChestX-ray14 release was used, of which one image shard "
+    "yielding 4,999 usable radiographs across 1,335 patients was drawn. These "
+    "were split patient-disjointly in half, giving 2,584 calibration images and "
+    "2,415 test images with no patient appearing on both sides. The quantised "
+    "int8 ONNX model that serves production was run over both splits, so the "
+    "conformal thresholds are calibrated against exactly the weights that are "
+    "deployed. A calibrator fitted to a different model than the one serving "
+    "traffic would produce a guarantee that does not hold."
 )
 
-doc.add_heading("7.2  Backpropagation verification", 2)
+doc.add_heading("7.2  Conformal coverage", 2)
 para(
-    "The from-scratch implementation agrees with central finite differences to a "
-    "maximum relative error of 7.2e-11 across all four parameter tensors, "
-    "confirming the analytic gradient is correct. The activation ablation "
-    "reproduces the expected ordering, with sigmoid converging slowest owing to "
-    "gradient saturation, and momentum improving on plain stochastic gradient "
-    "descent."
+    "This is the system's central claim and therefore the result that matters "
+    "most. Macro empirical coverage on the held-out test split was 0.8845 "
+    "against a nominal target of 0.90. The guarantee is therefore approximately "
+    "but not exactly met, and four labels under-cover materially."
 )
 
 table(
-    ["Configuration", "Test accuracy"],
-    [["ReLU + SGD", "0.928"], ["Leaky ReLU + SGD", "0.928"],
-     ["Tanh + SGD", "0.927"], ["Sigmoid + SGD", "0.868"],
-     ["ReLU + momentum", "0.940"]],
-    widths=[7.0, 4.0],
-    caption="Table 4. Activation and optimiser ablation (verified). Two-layer "
-            "network, identical seed and schedule.",
+    ["Pathology", "Empirical coverage", "Calibration positives"],
+    [
+        ["Hernia", "1.0000", "7"],
+        ["Fibrosis", "0.9605", "96"],
+        ["Edema", "0.9388", "41"],
+        ["Pleural Thickening", "0.9302", "79"],
+        ["Infiltration", "0.9038", "414"],
+        ["Consolidation", "0.8911", "104"],
+        ["Cardiomegaly", "0.8900", "96"],
+        ["Mass", "0.8947", "85"],
+        ["Atelectasis", "0.8794", "261"],
+        ["Pneumothorax", "0.8642", "118"],
+        ["Effusion", "0.8447", "268"],
+        ["Nodule", "0.8173", "110"],
+        ["Pneumonia", "0.7941", "31"],
+        ["Emphysema", "0.7736", "72"],
+        ["Macro average", "0.8845", "target 0.90"],
+    ],
+    widths=[6.0, 4.5, 4.5],
+    caption="Table 4. Empirical coverage per pathology on the patient-disjoint "
+            "test split. Four labels fall materially below the nominal level.",
 )
 
-doc.add_heading("7.3  Recurrent cell comparison", 2)
 para(
-    "Gradient-flow analysis over twelve random initialisations shows gated cells "
-    "retaining approximately four orders of magnitude more gradient at the first "
-    "timestep of a sixty-step sequence than a vanilla RNN. GRU and LSTM are close "
-    "and their ordering is not stable across seeds, so no claim is made that either "
-    "dominates on this probe; the downstream AUROC comparison decides which cell is "
-    "deployed."
+    "Two explanations account for the shortfall, and both are properties of the "
+    "method rather than implementation defects."
+)
+bullets([
+    ("Exchangeability. ",
+     "Split conformal guarantees coverage when calibration and test data are "
+     "exchangeable. Splitting by patient is methodologically required here, "
+     "because a patient's follow-up studies would otherwise leak across the "
+     "boundary and inflate every metric. But splitting by patient also means the "
+     "two halves are drawn from different individuals with different disease "
+     "profiles, so strict exchangeability does not hold and the guarantee "
+     "degrades accordingly."),
+    ("Thin calibration sets. ",
+     "The conformal quantile is estimated from the positives of each label "
+     "alone. Pneumonia has 31 calibration positives and Emphysema 72, so their "
+     "quantiles are noisy — and both are among the under-covering labels. Hernia, "
+     "with 7 positives, falls below the minimum for a meaningful estimate and is "
+     "held at a documented fallback threshold rather than given a fabricated one."),
+])
+para(
+    "The honest response is to report this rather than to raise alpha until the "
+    "numbers agree, which would amount to fitting the guarantee to the test set. "
+    "The deployed system reports its realised coverage on the dashboard, so a "
+    "reader is never shown a nominal figure the system does not actually achieve.",
+    bold=True,
 )
 
+doc.add_heading("7.3  Backpropagation verification", 2)
+para(
+    "The from-scratch implementation agrees with central finite differences to a "
+    "maximum relative error of 7.2e-11 across all four parameter tensors, "
+    "confirming the analytic gradient. The activation ablation reproduces the "
+    "expected ordering, with sigmoid converging slowest owing to gradient "
+    "saturation and momentum improving on plain stochastic gradient descent."
+)
+table(
+    ["Configuration", "Test accuracy"],
+    [["ReLU + momentum", "0.940"], ["ReLU + SGD", "0.928"],
+     ["Leaky ReLU + SGD", "0.928"], ["Tanh + SGD", "0.927"],
+     ["Sigmoid + SGD", "0.868"]],
+    widths=[7.0, 4.0],
+    caption="Table 5. Activation and optimiser ablation. Two-layer network, "
+            "identical seed and schedule.",
+)
+
+doc.add_heading("7.4  Recurrent cell comparison", 2)
+para(
+    "Gradient-flow analysis averaged over twelve random initialisations shows "
+    "gated cells retaining roughly four orders of magnitude more gradient at the "
+    "first timestep of a sixty-step sequence than a vanilla recurrent unit. GRU "
+    "and LSTM are close and their ordering is not stable across seeds, so no "
+    "claim is made that either dominates on this probe; the downstream AUROC "
+    "comparison decides which cell is deployed."
+)
 table(
     ["Cell", "Gradient at t=0", "Gradient at t=59", "Parameters"],
     [["Vanilla RNN", "1.46e-17", "1.09e-01", "463,374"],
      ["GRU", "8.69e-14", "5.61e-02", "1,382,926"],
      ["LSTM", "2.92e-14", "3.02e-02", "1,842,702"]],
     widths=[3.2, 4.0, 4.0, 3.4],
-    caption="Table 5. Gradient survival and parameter count (verified). Parameter "
-            "count is a confound in any cell comparison and is reported alongside.",
+    caption="Table 6. Gradient survival and parameter count. Parameter count is "
+            "a confound in any cell comparison and is reported alongside.",
 )
 
-doc.add_heading("7.4  Triage policy", 2)
+doc.add_heading("7.5  Triage policy", 2)
 para(
     "On the cost-based reading-room environment, an urgency-weighted heuristic "
     "roughly halves accumulated cost relative to first-in-first-out, and "
-    "oracle-greedy provides a further improvement that bounds what a learned policy "
-    "could achieve. The separation between policies is what makes the benchmark "
-    "usable."
+    "oracle-greedy bounds what a learned policy could achieve. The separation "
+    "between policies is what makes the benchmark usable at all."
 )
-
 table(
     ["Policy", "Mean episodic return", "Std"],
     [["Random", "-837.74", "41.45"],
      ["First-in-first-out", "-841.66", "31.48"],
      ["Urgency heuristic", "-397.73", "29.82"],
-     ["Oracle-greedy (upper bound)", "-367.22", "26.08"],
-     ["Double DQN", "to be completed", "—"]],
+     ["Oracle-greedy (upper bound)", "-367.22", "26.08"]],
     widths=[5.6, 5.0, 3.0],
-    caption="Table 6. Triage policy comparison (verified except DQN). Higher is "
-            "better; return is negative accumulated urgency-weighted waiting cost.",
+    caption="Table 7. Triage policy comparison. Higher is better; return is "
+            "negative accumulated urgency-weighted waiting cost.",
+)
+para(
+    "An earlier formulation additionally paid a bonus for reading a study. That "
+    "bonus dominated the waiting cost, and random, first-in-first-out and "
+    "heuristic policies became statistically indistinguishable — the environment "
+    "could not tell a good policy from a coin flip. Reformulating the reward as "
+    "pure cost separated them cleanly. This was found by running the baselines "
+    "rather than assuming they would differ."
 )
 
-doc.add_heading("7.5  Classification and fairness", 2)
+doc.add_heading("7.6  Quantisation fidelity and latency", 2)
 para(
-    "Per-pathology AUROC, AUPRC, the OOD gate's separation, and the "
-    "disaggregated fairness tables are produced by notebooks 02, 06 and 11 "
-    "respectively and are to be completed following the full training run. The "
-    "reporting templates and acceptance gates are already fixed, so the numbers "
-    "cannot be chosen after seeing them."
+    "Quantising the classifier to int8 changed its outputs by a mean absolute "
+    "difference of 9e-05 against the full-precision model, with top-1 agreement "
+    "on all trials. End-to-end, the orchestrator answers in approximately 150 ms "
+    "on 0.1 CPU using the quantised model, against roughly 450 ms for the "
+    "full-precision PyTorch path, and agreement between the two on the same image "
+    "is to within 0.001."
+)
+table(
+    ["Path", "Model", "Latency", "Provides"],
+    [["Fast (default)", "int8 ONNX, 7.9 MB", "~150 ms",
+      "Classification, conformal set, CAM"],
+     ["Full (optional)", "PyTorch on HF Spaces", "~450 ms warm",
+      "Adds MC sampling, Grad-CAM, VAE gate"]],
+    widths=[3.2, 4.4, 2.6, 5.4],
+    caption="Table 8. The two inference paths. The system is fully functional "
+            "on the fast path alone.",
 )
 
 page_break()
@@ -748,13 +908,36 @@ para(
     "first-class engineering concern rather than a closing section."
 )
 
-doc.add_heading("8.1  Disaggregated performance", 2)
+doc.add_heading("8.1  Disaggregated performance — measured", 2)
 para(
-    "Performance is measured within strata of sex, age band and view position, and "
-    "reported as equalised-odds gaps — the maximum within-stratum difference in "
-    "true-positive and false-positive rates. Equal accuracy across groups is not "
-    "sufficient: a model can be equally accurate on two populations while missing "
-    "substantially more disease in one of them."
+    "Performance was measured within strata of sex, age band and view position "
+    "on the 2,415-image test split and reported as equalised-odds gaps: the "
+    "maximum within-stratum difference in true-positive and false-positive "
+    "rates. Equal accuracy across groups is not sufficient, because a model can "
+    "be equally accurate on two populations while missing substantially more "
+    "disease in one of them."
+)
+
+table(
+    ["Stratum", "TPR gap", "FPR gap", "Within tolerance (0.10)"],
+    [["Patient sex", "0.0165", "0.0267", "Yes"],
+     ["Age band", "0.1295", "0.2040", "No"],
+     ["View position", "0.0228", "0.2149", "No"]],
+    widths=[4.2, 3.2, 3.2, 4.6],
+    caption="Table 9. Equalised-odds gaps. Two of three strata breach the "
+            "tolerance the project set for itself before measuring.",
+)
+
+para(
+    "The audit fails. The maximum equalised-odds gap is 0.2149 against a "
+    "tolerance of 0.10, and the system reports this on its dashboard as a "
+    "breach with nothing downgrading it.",
+    bold=True,
+)
+para(
+    "Sex is essentially balanced. Age and view position are not, and the view "
+    "position result is the more informative of the two because it was predicted "
+    "in the design specification before any data had been examined."
 )
 
 doc.add_heading("8.2  The view-position shortcut", 2)
@@ -767,10 +950,20 @@ para(
     "acquisition practice differs."
 )
 para(
-    "We probe this directly by measuring whether view position is itself "
-    "predictable from the image and by reporting pathology prevalence by view. "
-    "Pathologies with the largest prevalence gap are those most exposed to the "
-    "confound and are named explicitly as a limitation."
+    "The measurement confirms it. The false-positive rate differs by 0.2149 "
+    "between anteroposterior and posteroanterior films — an order of magnitude "
+    "larger than the corresponding difference between sexes, and the single "
+    "largest disparity found anywhere in the audit. The true-positive gap by "
+    "contrast is only 0.0228, which is the signature of the shortcut rather than "
+    "of a difference in disease: the model is not missing more disease on AP "
+    "films, it is over-calling disease on them."
+)
+para(
+    "This is what makes the finding worth reporting rather than concealing. A "
+    "model that has learned to read acquisition circumstance as evidence of "
+    "illness will appear to perform well on any test set drawn from the same "
+    "institution, and will degrade unpredictably wherever portable radiography "
+    "is used differently. Aggregate AUROC would not have revealed it."
 )
 
 doc.add_heading("8.3  What we cannot audit", 2)
@@ -829,9 +1022,24 @@ bullets([
     ("Single-institution data. ",
      "All data originates from one United States hospital system. Performance on "
      "other populations, equipment and acquisition practice is unvalidated."),
+    ("Coverage is approached, not attained. ",
+     "Measured macro coverage is 0.8845 against a 0.90 target, with Emphysema at "
+     "0.774 and Pneumonia at 0.794. The shortfall is explained in section 7.2 and "
+     "is a property of patient-disjoint splitting and thin per-label calibration "
+     "sets, not an implementation defect — but the system does not currently "
+     "deliver its nominal guarantee, and says so."),
     ("Marginal, not simultaneous, coverage. ",
      "The conformal guarantee holds per label. Simultaneous coverage across all "
      "fourteen would require a multiplicity correction and is not claimed."),
+    ("Measured on one shard. ",
+     "Calibration and evaluation used 4,999 radiographs from 1,335 patients, not "
+     "the full 112,120. The figures are real but their confidence intervals are "
+     "wider than the full corpus would give."),
+    ("A published checkpoint, not our own weights. ",
+     "The deployed classifier uses TorchXRayVision pretrained weights. The "
+     "training notebooks reproduce and extend them, and swapping in group-trained "
+     "weights is a single configuration change, but no result in this report is "
+     "presented as the outcome of our own training run."),
     ("Exchangeability. ",
      "The guarantee assumes calibration and test data are exchangeable. Distribution "
      "shift — a new scanner, a new population — voids it, and the system has no "
@@ -874,15 +1082,33 @@ para(
     "than assembled as separate exercises."
 )
 para(
-    "The most valuable lessons were negative ones. An early triage environment "
-    "could not distinguish a good policy from a random one and had to be "
-    "reformulated. A pretrained checkpoint turned out to contain no dropout, "
-    "silently invalidating the intended uncertainty method and forcing an honest "
-    "alternative. The interface at one point displayed a probability above its "
-    "threshold beside the label 'not included', because the stored scores and the "
-    "scores used for the decision had diverged. Each was found by testing a claim "
-    "the system made about itself, and each would have survived a demonstration "
-    "that only checked whether the application looked correct."
+    "The most valuable lessons were negative ones, and there were more of them "
+    "than we expected. An early triage environment could not distinguish a good "
+    "policy from a random one and had to be reformulated. The pretrained "
+    "checkpoint contains no dropout, silently invalidating the intended "
+    "uncertainty method and forcing an honest alternative. The interface once "
+    "displayed a probability above its threshold beside the label 'not included', "
+    "because the stored scores and the scores used for the decision had diverged. "
+    "A quantised model passed every numerical check and then proved unexecutable "
+    "on the deployed runtime, because the verification tested agreement but never "
+    "tested whether a session could be created at all. Applying a ReLU to a class "
+    "activation map by analogy with Grad-CAM zeroed eleven of the fourteen maps. "
+    "A rate limiter keyed on the proxy address rather than the caller placed every "
+    "visitor worldwide into a single shared budget."
+)
+para(
+    "Each was found by testing a claim the system made about itself, and none "
+    "would have been caught by checking whether the application looked correct. "
+    "That pattern — assert the property, not the appearance — is the most "
+    "transferable thing we take from the project."
+)
+para(
+    "The final results are imperfect and we have reported them that way. Coverage "
+    "reaches 0.8845 rather than 0.90. The fairness audit fails its own tolerance "
+    "at 0.2149, driven by exactly the acquisition confound the design document "
+    "predicted before any data was examined. A system built around the principle "
+    "of admitting what it does not know would be a poor advertisement for that "
+    "principle if its authors did otherwise."
 )
 para(
     "That is the underlying argument of this project. A clinical system earns trust "

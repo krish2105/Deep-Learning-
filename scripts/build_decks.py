@@ -308,12 +308,13 @@ def build_week6():
     s = blank(prs); eyebrow(s, "progress", 7, T)
     title(s, "Where we are.")
     bullet_panels(s, [
-        ("Done", "Full-stack system built and running. 80 automated tests "
-                 "passing. Real pretrained inference verified end-to-end at 583 ms."),
-        ("Done", "Conformal implementation validated: 0.9004 empirical coverage "
-                 "against a 0.90 target. Backprop verified to 1e-11."),
-        ("Next", "Full training run on the complete dataset; fairness audit; "
-                 "DQN training against the cost-based environment."),
+        ("Done", "Full-stack system live on free-tier infrastructure. 83 tests "
+                 "passing. Real inference in ~150 ms via a 7.9 MB quantised model "
+                 "carried by the API itself."),
+        ("Done", "Calibrated on 4,999 real radiographs: coverage 0.8845, and a "
+                 "fairness audit that FAILS its own tolerance at 0.2149."),
+        ("Next", "Group-trained weights to replace the pretrained checkpoint; "
+                 "DQN training; VAE gate; wider calibration corpus."),
     ], y=2.5, h=2.3)
     footer(s)
 
@@ -325,8 +326,8 @@ def build_week6():
          "Random, FIFO and heuristic scored identically — the benchmark was meaningless"],
         ["Pretrained checkpoint has no dropout",
          "MC-dropout would have reported epistemic uncertainty of exactly zero"],
-        ["Stored scores ≠ decision scores",
-         "UI showed a probability above threshold beside 'not included'"],
+        ["int8 model would not load in production",
+         "Verified numerically but never verified as executable on the pinned runtime"],
     ], y=2.5, widths=[4.6, 7.3], row_h=0.85, size=13)
     panel(s, 0.7, 5.6, 11.9, 1.0)
     text(s, 1.0, 5.82, 11.3, 0.6,
@@ -339,10 +340,10 @@ def build_week6():
     s = blank(prs); eyebrow(s, "plan", 9, T)
     title(s, "To the final submission.")
     table(s, ["Stage", "Owner", "Output"], [
-        ["Full training run + calibration", "Krishna", "conformal_calibration.json"],
-        ["Deployment + evaluation harness", "Atharva", "Live URLs, CI gates"],
-        ["Fairness audit + interface", "Yash", "fairness_report.json, console"],
-        ["Report and final deck", "All", "15–20 pp report, 15-slide deck"],
+        ["Model, ONNX export, calibration", "Krishna Mathur", "conformal_calibration.json"],
+        ["Deployment, resilience, CI gates", "Atharva Soundankar", "Live URLs, 83 tests"],
+        ["Console, dashboard, fairness", "Yash Petkar", "fairness_report.json"],
+        ["Report and both decks", "All three", "15 pp report, 25 slides"],
     ], y=2.6, widths=[5.2, 2.4, 4.3], row_h=0.62, size=13)
     footer(s)
 
@@ -381,7 +382,7 @@ def build_final():
          "SENTINEL-CXR produces a prediction set with a statistical coverage "
          "guarantee, and abstains when that guarantee cannot be met.",
          size=16, colour=MID, spacing=1.2)
-    chip(s, 8.9, 2.8, 3.7, "Effusion", "0.94", chroma=1.0)
+    chip(s, 8.9, 2.8, 3.7, "Effusion", "0.87", chroma=1.0)
     chip(s, 8.9, 3.55, 3.7, "Nodule", "0.61", chroma=0.35)
     chip(s, 8.9, 4.3, 3.7, "Abstained", "—", hatched=True)
     text(s, 8.9, 5.05, 3.7, 0.6, "Confidence is chroma.\nColour drains as the "
@@ -519,21 +520,22 @@ def build_final():
          "Coverage is the project's central claim — so it is asserted in CI.",
          size=14, colour=MID)
     panel(s, 0.7, 2.9, 5.8, 2.5)
-    text(s, 1.0, 3.15, 5.2, 0.4, "CONFORMAL COVERAGE", size=10,
+    text(s, 1.0, 3.15, 5.2, 0.4, "MEASURED COVERAGE", size=10,
          colour=INSTRUMENT, font=MONO)
-    text(s, 1.0, 3.6, 5.2, 0.8, "0.9004", size=44, bold=True, colour=INSTRUMENT,
+    text(s, 1.0, 3.6, 5.2, 0.8, "0.8845", size=44, bold=True, colour=URGENT,
          font=MONO)
-    text(s, 1.0, 4.5, 5.2, 0.8,
-         "against a 0.90 nominal target\nper-label range 0.837 – 0.967",
+    text(s, 1.0, 4.5, 5.2, 0.9,
+         "against a 0.90 target — BELOW\n4,999 radiographs, 1,335 patients\n"
+         "patient-disjoint split",
          size=12, colour=MID, spacing=1.1)
     panel(s, 6.8, 2.9, 5.8, 2.5)
-    text(s, 7.1, 3.15, 5.2, 0.4, "BACKPROP GRADIENT CHECK", size=10,
+    text(s, 7.1, 3.15, 5.2, 0.4, "WHY IT FALLS SHORT", size=10,
          colour=INSTRUMENT, font=MONO)
-    text(s, 7.1, 3.6, 5.2, 0.8, "7.2e-11", size=44, bold=True, colour=INSTRUMENT,
-         font=MONO)
-    text(s, 7.1, 4.5, 5.2, 0.8,
-         "max relative error vs finite\ndifferences — from-scratch NumPy",
-         size=12, colour=MID, spacing=1.1)
+    text(s, 7.1, 3.6, 5.2, 1.9,
+         "Coverage assumes exchangeability.\nSplitting by PATIENT is required\n"
+         "to avoid follow-up leakage — and\nbreaks exchangeability.\n\n"
+         "Pneumonia has 31 calibration\npositives; its quantile is noisy.",
+         size=12, colour=HIGHLIGHT, spacing=1.12)
     footer(s)
 
     # 10 — results 2
@@ -574,23 +576,24 @@ def build_final():
 
     # 12 — ethics
     s = blank(prs); eyebrow(s, "ethics · outcome e", 12, T)
-    title(s, "What we audited — and what we cannot.")
-    bullet_panels(s, [
-        ("Audited",
-         "Equalised-odds gaps across sex, age band and view position. Reported "
-         "whether favourable or not."),
-        ("The AP/PA shortcut",
-         "Portable AP films come from sicker patients. A model can read 'AP film' "
-         "as 'sick patient' — and fail when practice changes."),
-        ("Cannot audit",
-         "ChestX-ray14 has no race or ethnicity labels. A documented axis of "
-         "disparity is invisible here."),
-    ], y=2.5, h=2.2)
-    panel(s, 0.7, 5.0, 11.9, 1.25)
-    text(s, 1.0, 5.25, 11.3, 0.9,
-         "That absence is itself a finding. It is not, and must not be presented "
-         "as, an absence of bias.",
-         size=15, bold=True, colour=STAT)
+    title(s, "The audit fails. We predicted why before we measured.")
+    table(s, ["Stratum", "TPR gap", "FPR gap", "Within 0.10?"], [
+        ["Patient sex", "0.0165", "0.0267", "yes"],
+        ["Age band", "0.1295", "0.2040", "NO"],
+        ["View position", "0.0228", "0.2149", "NO"],
+    ], y=2.45, widths=[4.2, 2.6, 2.6, 2.5], row_h=0.5, size=14, highlight_row=2)
+    panel(s, 0.7, 4.5, 11.9, 1.75)
+    text(s, 1.0, 4.72, 11.3, 1.45,
+         "Portable AP films are taken of patients too unwell to stand, so view "
+         "position correlates with severity. The FPR gap is 0.2149 while the TPR "
+         "gap is only 0.0228 — the model is not MISSING more disease on AP films, "
+         "it is OVER-CALLING it. That asymmetry is the signature of a shortcut, "
+         "and aggregate AUROC would never have shown it.",
+         size=13, colour=HIGHLIGHT, spacing=1.14)
+    text(s, 0.7, 6.4, 11.9, 0.4,
+         "ChestX-ray14 has no race labels — that axis cannot be audited at all, "
+         "and that absence is a finding, not an absence of bias.",
+         size=12, bold=True, colour=STAT)
     footer(s)
 
     # 13 — limitations
@@ -618,11 +621,13 @@ def build_final():
          "Running the baselines instead of assuming they'd differ"],
         ["Pretrained model had zero dropout",
          "Asserting MC-dropout actually enables layers"],
-        ["Displayed score ≠ decision score",
-         "Checking included == (p >= threshold) for all 14 labels"],
-        ["Trend said 'worsening', findings said 'no change'",
-         "A test asserting the two agree"],
-    ], y=2.5, widths=[5.9, 6.0], row_h=0.72, size=13)
+        ["int8 model unexecutable in production",
+         "Creating a session, not just checking numerical agreement"],
+        ["ReLU zeroed 11 of 14 activation maps",
+         "Noticing CAM is an evidence field, not a gradient product"],
+        ["Rate limiter bucketed the whole world",
+         "Asserting two clients behind one proxy get separate budgets"],
+    ], y=2.4, widths=[5.9, 6.0], row_h=0.66, size=13)
     panel(s, 0.7, 5.6, 11.9, 1.0)
     text(s, 1.0, 5.8, 11.3, 0.7,
          "Every one was found by testing a claim the system makes about itself. "

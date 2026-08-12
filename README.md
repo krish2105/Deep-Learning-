@@ -55,16 +55,20 @@ Render's free tier provides **512 MB and 0.1 CPU**. PyTorch does not fit. Huggin
 Spaces provides **16 GB**. The whole design follows from that asymmetry.
 
 ```
-Vercel      Next.js 15 — landing + clinical console
+Vercel      Next.js 15 — landing · console · dashboard
    │        HTTPS + JWT
 Render      FastAPI · 512 MB · NO PyTorch
+   │        int8 ONNX classifier (7.9 MB) + CAM  →  ~150 ms
    │        conformal head (NumPy) · auth · audit log
-   ├── cold ─→ ONNX int8 · <900 ms · response marked "reduced"
    │
-HF Spaces   16 GB · DenseNet · ViT · VAE · LSTM · Grad-CAM
+HF Spaces   16 GB · OPTIONAL — adds MC sampling, Grad-CAM, VAE gate
    │
 Supabase    Postgres + object storage
 ```
+
+The orchestrator performs **real inference by itself**. The Space is an
+enhancement, not a dependency: with it absent the system still classifies,
+calibrates, abstains and explains.
 
 A free Space sleeps after 48 hours and takes ~40 s to wake. When it is cold, the ONNX
 fast path answers immediately and the response is marked `reduced` — visibly, in the
@@ -156,6 +160,25 @@ Two consequences of using a published checkpoint, both surfaced rather than hidd
 | 10 | ViT / CLIP | CNN vs Transformer, BiomedCLIP zero-shot | `09` |
 | 11 | GenAI integration | Grounded report generation + verifier | `10` |
 | 12 | Ethics & fairness | Disaggregated audit, shortcut probe, model card | `11` |
+
+## Measured results
+
+Calibrated on 4,999 real ChestX-ray14 radiographs from 1,335 patients, split
+patient-disjointly, using the exact weights that serve production.
+
+| | |
+|---|---|
+| Macro empirical coverage | **0.8845** against a 0.90 target — below |
+| Max equalised-odds gap | **0.2149** — breaches the 0.10 tolerance |
+| Worst stratum | View position (AP/PA), FPR gap 0.2149 |
+| Inference latency | ~150 ms on 0.1 CPU |
+| Tests | 83 passing |
+
+Both headline numbers are unfavourable and are reported as measured. The
+coverage shortfall follows from patient-disjoint splitting breaking
+exchangeability, and from thin per-label calibration sets. The fairness breach
+confirms the AP/PA acquisition shortcut that the design document predicted
+before any data was examined.
 
 ## Data
 
